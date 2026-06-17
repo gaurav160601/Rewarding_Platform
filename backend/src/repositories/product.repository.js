@@ -121,6 +121,63 @@ class ProductRepository {
 
         return rows[0].total;
     }
+
+    async updateStock(
+  productId,
+  quantity,
+  connection
+) {
+
+  const [result] =
+    await connection.execute(
+      `
+      UPDATE products
+      SET stock = stock - ?
+      WHERE id = ?
+      `,
+      [
+        quantity,
+        productId
+      ]
+    );
+
+  return result.affectedRows;
+}
+
+  async findByIdForUpdate(
+    productId,
+    connection
+  ) {
+
+    const [rows] =
+      await connection.execute(
+        `
+        SELECT *
+        FROM products
+        WHERE id = ?
+        FOR UPDATE
+        `,
+        [productId]
+      );
+
+    return rows[0];
+  }
+
+  async restoreStock(
+    productId,
+    quantity,
+    connection
+  ) {
+
+    await connection.execute(
+      `
+      UPDATE products
+      SET stock = stock + ?
+      WHERE id = ?
+      `,
+      [quantity, productId]
+    );
+  }
 }
 
 module.exports =
