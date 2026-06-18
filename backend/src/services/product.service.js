@@ -2,6 +2,9 @@ const productRepository = require("../repositories/product.repository");
 
 const validateProduct = require("../validators/product.validator");
 
+const redisClient =
+require("../config/redis.config");
+
 class ProductService {
 
   async create(data) {
@@ -10,6 +13,19 @@ class ProductService {
       await productRepository.createProduct(
         data
       );
+
+    const keys =
+      await redisClient.keys(
+        "products:*"
+      );
+
+    if (keys.length > 0) {
+
+      await redisClient.del(
+        keys
+      );
+
+    }
 
     return {
       productId
@@ -43,13 +59,45 @@ class ProductService {
 
     const limit = 10;
 
+    const cacheKey =
+      `products:${currentPage}:${limit}`;
+
+    const cachedData =
+      await redisClient.get(
+        cacheKey
+      );
+
+    if (cachedData) {
+
+      console.log(
+        "Redis Cache Hit"
+      );
+
+      return JSON.parse(
+        cachedData
+      );
+    }
+
+    console.log(
+      "Redis Cache Miss"
+    );
+
     const offset =
       (currentPage - 1) * limit;
 
-    return productRepository.getProducts(
-      limit,
-      offset
+    const result =
+      await productRepository.getProducts(
+        limit,
+        offset
+      );
+
+    await redisClient.setEx(
+      cacheKey,
+      300,
+      JSON.stringify(result)
     );
+
+    return result;
   }
 
   async search(keyword) {
@@ -82,6 +130,19 @@ class ProductService {
     );
   }
 
+  const keys =
+    await redisClient.keys(
+      "products:*"
+    );
+
+  if (keys.length > 0) {
+
+    await redisClient.del(
+      keys
+    );
+
+  }
+
   return {
     message:
       "Product updated successfully"
@@ -100,6 +161,19 @@ async delete(id) {
     throw new Error(
       "Product not found"
     );
+  }
+
+  const keys =
+    await redisClient.keys(
+      "products:*"
+    );
+
+  if (keys.length > 0) {
+
+    await redisClient.del(
+      keys
+    );
+
   }
 
   return {

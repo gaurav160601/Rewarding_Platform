@@ -7,6 +7,9 @@ require("../repositories/payment.repository");
 const orderRepository =
 require("../repositories/order.repository");
 
+const rewardQueue =
+require("../queues/reward.queue");
+
 const PAYMENT_STATUS =
 require("../constants/paymentStatus");
 
@@ -146,6 +149,13 @@ class PaymentService {
       return;
     }
 
+    if (
+      payment.status ===
+      PAYMENT_STATUS.SUCCESS
+    ) {
+      return;
+    }
+
     await paymentRepository.updateStatus(
       payment.id,
       PAYMENT_STATUS.SUCCESS
@@ -154,6 +164,33 @@ class PaymentService {
     await orderRepository.updateOrderStatus(
       payment.order_id,
       ORDER_STATUS.PAID
+    );
+
+    await rewardQueue.add(
+      "earnReward",
+      {
+        userId:
+          payment.user_id,
+
+        orderId:
+          payment.order_id,
+
+        amount:
+          payment.amount
+      },
+
+      {
+        attempts: 3,
+
+        backoff: {
+          type: "exponential",
+          delay: 2000
+        }
+      }
+    );
+
+    console.log(
+      "Reward Job Queued"
     );
   }
 

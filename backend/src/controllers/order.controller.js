@@ -79,6 +79,81 @@ class OrderController {
     }
   }
 
+  async processOrder(
+    req,
+    res,
+    next
+  ) {
+
+    try {
+
+      const result =
+        await orderService.processOrder(
+          req.params.id
+        );
+
+      return res.status(200).json({
+        success: true,
+        data: result
+      });
+
+    } catch (error) {
+
+      next(error);
+
+    }
+  }
+
+  async shipOrder(
+    req,
+    res,
+    next
+  ) {
+
+    try {
+
+      const result =
+        await orderService.shipOrder(
+          req.params.id
+        );
+
+      return res.status(200).json({
+        success: true,
+        data: result
+      });
+
+    } catch (error) {
+
+      next(error);
+
+    }
+  }
+
+  async deliverOrder(
+    req,
+    res,
+    next
+  ) {
+
+    try {
+
+      const result =
+        await orderService.deliverOrder(
+          req.params.id
+        );
+
+      return res.status(200).json({
+        success: true,
+        data: result
+      });
+
+    } catch (error) {
+
+      next(error);
+
+    }
+  }
+
   async cancelOrder(
     req,
     res,

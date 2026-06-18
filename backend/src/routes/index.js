@@ -9,18 +9,17 @@ const cartRoutes =require("./cart.routes");
 
 const orderRoutes = require("./order.routes");
 
-const paymentRoutes =
-require("./payment.routes");
+const paymentRoutes = require("./payment.routes");
+
+const rewardRoutes = require("./reward.routes");
 
 router.use("/health", healthRoutes);
 router.use("/auth", authRoutes);
 router.use("/products", productRoutes);
 router.use("/cart", cartRoutes);
 router.use("/orders", orderRoutes);
-router.use(
-  "/payments",
-  paymentRoutes
-);
+router.use("/payments",paymentRoutes);
+router.use("/rewards", rewardRoutes);
 
 
 module.exports = router;

@@ -10,6 +10,9 @@ require("../repositories/cart.repository");
 const productRepository =
 require("../repositories/product.repository");
 
+const ORDER_STATUS =
+require("../constants/orderStatus");
+
 const {
   ADMIN
 } = require("../constants/roles");
@@ -204,6 +207,111 @@ class OrderService {
     }
 
     return order;
+  }
+
+  async processOrder(
+    orderId
+  ) {
+
+    const order =
+      await orderRepository.getOrderById(
+        orderId
+      );
+
+    if (!order) {
+      throw new Error(
+        "Order not found"
+      );
+    }
+
+    if (
+      order.status !==
+      ORDER_STATUS.PAID
+    ) {
+
+      throw new Error(
+        "Only paid orders can be processed"
+      );
+    }
+
+    await orderRepository.updateOrderStatus(
+      orderId,
+      ORDER_STATUS.PROCESSING
+    );
+
+    return orderRepository.getOrderById(
+      orderId
+    );
+  }
+
+  async shipOrder(
+    orderId
+  ) {
+
+    const order =
+      await orderRepository.getOrderById(
+        orderId
+      );
+
+    if (!order) {
+      throw new Error(
+        "Order not found"
+      );
+    }
+
+    if (
+      order.status !==
+      ORDER_STATUS.PROCESSING
+    ) {
+
+      throw new Error(
+        "Only processing orders can be shipped"
+      );
+    }
+
+    await orderRepository.updateOrderStatus(
+      orderId,
+      ORDER_STATUS.SHIPPED
+    );
+
+    return orderRepository.getOrderById(
+      orderId
+    );
+  }
+
+  async deliverOrder(
+    orderId
+  ) {
+
+    const order =
+      await orderRepository.getOrderById(
+        orderId
+      );
+
+    if (!order) {
+      throw new Error(
+        "Order not found"
+      );
+    }
+
+    if (
+      order.status !==
+      ORDER_STATUS.SHIPPED
+    ) {
+
+      throw new Error(
+        "Only shipped orders can be delivered"
+      );
+    }
+
+    await orderRepository.updateOrderStatus(
+      orderId,
+      ORDER_STATUS.DELIVERED
+    );
+
+    return orderRepository.getOrderById(
+      orderId
+    );
   }
 
   async cancelOrder(

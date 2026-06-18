@@ -9,6 +9,13 @@ const {connectMySQL} = require("./src/database/mysql");
 
 const connectMongo = require("./src/database/mongo");
 
+require(
+  "./src/workers/reward.worker"
+);
+
+const redisClient =
+require("./src/config/redis.config");
+
 const startServer = async () => {
   try {
 

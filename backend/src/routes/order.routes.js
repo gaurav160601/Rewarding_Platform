@@ -10,6 +10,9 @@ require("../controllers/order.controller");
 const authMiddleware =
 require("../middleware/auth.middleware");
 
+const authorize =
+require("../middleware/role.middleware");
+
 router.post(
   "/checkout",
   authMiddleware,
@@ -26,6 +29,27 @@ router.get(
   "/:id",
   authMiddleware,
   orderController.getOrder
+);
+
+router.put(
+  "/:id/process",
+  authMiddleware,
+  authorize("ADMIN"),
+  orderController.processOrder
+);
+
+router.put(
+  "/:id/ship",
+  authMiddleware,
+  authorize("ADMIN"),
+  orderController.shipOrder
+);
+
+router.put(
+  "/:id/deliver",
+  authMiddleware,
+  authorize("ADMIN"),
+  orderController.deliverOrder
 );
 
 router.put(
