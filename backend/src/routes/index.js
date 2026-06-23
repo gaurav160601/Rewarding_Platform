@@ -13,7 +13,6 @@ const paymentRoutes = require("./payment.routes");
 
 const rewardRoutes = require("./reward.routes");
 const adminRoutes = require("./admin.routes");
-
 router.use("/health", healthRoutes);
 router.use("/auth", authRoutes);
 router.use("/products", productRoutes);

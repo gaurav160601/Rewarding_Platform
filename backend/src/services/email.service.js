@@ -10,6 +10,18 @@ const orderCancelledTemplate =
 const rewardEarnedTemplate =
   require("../templates/rewardEarned.template");
 
+const welcomeTemplate =
+  require("../templates/emails/welcome.template");
+
+const orderCreatedTemplate =
+  require("../templates/emails/orderCreated.template");
+
+const paymentSuccessTemplate =
+  require("../templates/emails/paymentSuccess.template");
+
+const refundProcessedTemplate =
+  require("../templates/emails/refundProcessed.template");
+
 let resend = null;
 
 if (process.env.RESEND_API_KEY) {
@@ -25,104 +37,69 @@ const FROM =
 
 class EmailService {
 
-  async sendOrderShippedEmail(
-    { email, orderId }
-  ) {
-
+  async sendEmail({ to, subject, html }) {
     if (!resend) {
       console.log(
-        `[EMAIL] Would send ORDER_SHIPPED to ${email} for order #${orderId}`
+        `[EMAIL] Would send "${subject}" to ${to}`
       );
       return;
     }
-
-    const { subject, html } =
-      orderShippedTemplate({
-        orderId
-      });
-
     await resend.emails.send({
       from: FROM,
-      to: email,
+      to,
       subject,
       html
     });
   }
 
-  async sendOrderDeliveredEmail(
-    { email, orderId }
-  ) {
-
-    if (!resend) {
-      console.log(
-        `[EMAIL] Would send ORDER_DELIVERED to ${email} for order #${orderId}`
-      );
-      return;
-    }
-
+  async sendWelcomeEmail({ email, name }) {
     const { subject, html } =
-      orderDeliveredTemplate({
-        orderId
-      });
-
-    await resend.emails.send({
-      from: FROM,
-      to: email,
-      subject,
-      html
-    });
+      welcomeTemplate({ name });
+    await this.sendEmail({ to: email, subject, html });
   }
 
-  async sendOrderCancelledEmail(
-    { email, orderId }
-  ) {
-
-    if (!resend) {
-      console.log(
-        `[EMAIL] Would send ORDER_CANCELLED to ${email} for order #${orderId}`
-      );
-      return;
-    }
-
+  async sendOrderCreatedEmail({ email, orderId, totalAmount, redeemedPoints, finalAmount }) {
     const { subject, html } =
-      orderCancelledTemplate({
-        orderId
-      });
-
-    await resend.emails.send({
-      from: FROM,
-      to: email,
-      subject,
-      html
-    });
+      orderCreatedTemplate({ orderId, totalAmount, redeemedPoints, finalAmount });
+    await this.sendEmail({ to: email, subject, html });
   }
 
-  async sendRewardEarnedEmail(
-    { email, points, balance }
-  ) {
-
-    if (!resend) {
-      console.log(
-        `[EMAIL] Would send REWARD_EARNED to ${email}: ${points} points, balance ${balance}`
-      );
-      return;
-    }
-
+  async sendPaymentSuccessEmail({ email, orderId, amount, earnedPoints }) {
     const { subject, html } =
-      rewardEarnedTemplate({
-        points,
-        balance
-      });
-
-    await resend.emails.send({
-      from: FROM,
-      to: email,
-      subject,
-      html
-    });
+      paymentSuccessTemplate({ orderId, amount, earnedPoints });
+    await this.sendEmail({ to: email, subject, html });
   }
 
+  async sendRefundProcessedEmail({ email, orderId, refundAmount, refundTransactionId }) {
+    const { subject, html } =
+      refundProcessedTemplate({ orderId, refundAmount, refundTransactionId });
+    await this.sendEmail({ to: email, subject, html });
+  }
+
+  async sendOrderShippedEmail({ email, orderId }) {
+    const { subject, html } =
+      orderShippedTemplate({ orderId });
+    await this.sendEmail({ to: email, subject, html });
+  }
+
+  async sendOrderDeliveredEmail({ email, orderId }) {
+    const { subject, html } =
+      orderDeliveredTemplate({ orderId });
+    await this.sendEmail({ to: email, subject, html });
+  }
+
+  async sendOrderCancelledEmail({ email, orderId, refundAmount, refundStatus, returnedPoints, reversedPoints }) {
+    const { subject, html } =
+      orderCancelledTemplate({ orderId, refundAmount, refundStatus, returnedPoints, reversedPoints });
+    await this.sendEmail({ to: email, subject, html });
+  }
+
+  async sendRewardEarnedEmail({ email, points, balance }) {
+    const { subject, html } =
+      rewardEarnedTemplate({ points, balance });
+    await this.sendEmail({ to: email, subject, html });
+  }
 }
 
 module.exports =
-new EmailService();
+  new EmailService();

@@ -2,6 +2,7 @@ const bcrypt = require("bcrypt");
 const { generateAccessToken } = require("../utils/jwt");
 const userRepository = require("../repositories/user.repository");
 const role = require("../constants/roles");
+const emailQueue = require("../queues/email.queue");
 
 class AuthService {
     async register(data) {
@@ -24,6 +25,21 @@ class AuthService {
                 passwordHash,
                 role: role.CUSTOMER
             });
+
+        await emailQueue.add(
+            "WELCOME",
+            {
+                email: data.email,
+                name: data.name || data.email
+            },
+            {
+                attempts: 3,
+                backoff: {
+                    type: "exponential",
+                    delay: 5000
+                }
+            }
+        );
 
         return { userId };
     }

@@ -286,6 +286,32 @@ class OrderService {
 
       await clearProductCache();
 
+      const orderUser =
+        await userRepository.findById(
+          userId
+        );
+
+      await emailQueue.add(
+        "ORDER_CREATED",
+        {
+          email: orderUser.email,
+          orderId,
+          totalAmount,
+          redeemedPoints: redeemPoints,
+          finalAmount:
+            finalAmount > 0
+              ? finalAmount
+              : 0
+        },
+        {
+          attempts: 3,
+          backoff: {
+            type: "exponential",
+            delay: 5000
+          }
+        }
+      );
+
       return {
         orderId,
         totalAmount,
@@ -749,11 +775,34 @@ class OrderService {
           order.user_id
         );
 
+      const reversedPoints =
+        previousStatus !== "PAYMENT_PENDING"
+          ? Math.floor(finalAmount / 10)
+          : 0;
+
       await emailQueue.add(
         "ORDER_CANCELLED",
         {
           email: orderUser.email,
-          orderId
+          orderId,
+          refundAmount:
+            finalAmount > 0 &&
+            previousStatus !== "PAYMENT_PENDING"
+              ? finalAmount
+              : null,
+          refundStatus:
+            finalAmount > 0 &&
+            previousStatus !== "PAYMENT_PENDING"
+              ? "COMPLETED"
+              : null,
+          returnedPoints:
+            order.points_redeemed > 0
+              ? order.points_redeemed
+              : null,
+          reversedPoints:
+            reversedPoints > 0
+              ? reversedPoints
+              : null
         },
         {
           attempts: 3,
@@ -763,6 +812,30 @@ class OrderService {
           }
         }
       );
+
+      if (
+        finalAmount > 0 &&
+        previousStatus !== "PAYMENT_PENDING"
+      ) {
+
+        await emailQueue.add(
+          "REFUND_PROCESSED",
+          {
+            email: orderUser.email,
+            orderId,
+            refundAmount: finalAmount,
+            refundTransactionId:
+              refundTxnId || `REF_${order.id}_${Date.now()}`
+          },
+          {
+            attempts: 3,
+            backoff: {
+              type: "exponential",
+              delay: 5000
+            }
+          }
+        );
+      }
 
       return {
         message:

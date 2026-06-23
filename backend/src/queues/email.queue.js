@@ -1,17 +1,8 @@
-const { Queue } =
-require("bullmq");
+const { Queue } = require("bullmq");
+const { createBullConnection } = require("../config/redis.bull.config");
 
-const redisClient =
-require("../config/redis.config");
+const emailQueue = new Queue("emailQueue", {
+  connection: createBullConnection()
+});
 
-const emailQueue =
-new Queue(
-  "emailQueue",
-  {
-    connection:
-      redisClient
-  }
-);
-
-module.exports =
-emailQueue;
+module.exports = emailQueue;

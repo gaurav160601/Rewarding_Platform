@@ -13,6 +13,12 @@ require("../repositories/product.repository");
 const rewardQueue =
 require("../queues/reward.queue");
 
+const emailQueue =
+require("../queues/email.queue");
+
+const userRepository =
+require("../repositories/user.repository");
+
 const MIN_PAYMENT_AMOUNT = 50;
 
 const PAYMENT_STATUS =
@@ -335,6 +341,33 @@ class PaymentService {
       ORDER_STATUS.PAID,
       null,
       "paid_at"
+    );
+
+    const earnedPoints =
+      Math.floor(
+        Number(payment.amount) / 10
+      );
+
+    const payer =
+      await userRepository.findById(
+        payment.user_id
+      );
+
+    await emailQueue.add(
+      "PAYMENT_SUCCESS",
+      {
+        email: payer.email,
+        orderId: payment.order_id,
+        amount: payment.amount,
+        earnedPoints
+      },
+      {
+        attempts: 3,
+        backoff: {
+          type: "exponential",
+          delay: 5000
+        }
+      }
     );
 
     await rewardQueue.add(
