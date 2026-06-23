@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useLocation } from "react-router-dom";
 import api from "../api/axios";
 import graphqlClient from "../graphql/client";
 import {
@@ -20,6 +21,7 @@ const initialForm = {
 
 function AdminProducts() {
   const toast = useToast();
+  const location = useLocation();
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -43,10 +45,7 @@ function AdminProducts() {
 
   useEffect(() => {
     fetchProducts();
-    const onFocus = () => fetchProducts();
-    window.addEventListener("focus", onFocus);
-    return () => window.removeEventListener("focus", onFocus);
-  }, []);
+  }, [location.key]);
 
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });

@@ -1,10 +1,12 @@
 import { useState, useEffect } from "react";
+import { useLocation } from "react-router-dom";
 import api from "../api/axios";
 import { useToast } from "../components/Toast";
 import { CardSkeleton } from "../components/Skeleton";
 
 function Products() {
   const toast = useToast();
+  const location = useLocation();
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -44,10 +46,7 @@ function Products() {
       }
     };
     fetchProducts();
-    const onFocus = () => fetchProducts();
-    window.addEventListener("focus", onFocus);
-    return () => window.removeEventListener("focus", onFocus);
-  }, []);
+  }, [location.key]);
 
   if (loading) {
     return (
