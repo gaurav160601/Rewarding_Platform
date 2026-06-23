@@ -8,7 +8,15 @@ const errorMiddleware =require("./middleware/error.middleware");
 const app = express();
 
 // Security
-app.use(cors());
+const allowedOrigins = (
+  process.env.CORS_ORIGINS ||
+  "http://localhost:5173,http://localhost:3000"
+).split(",");
+
+app.use(cors({
+  origin: allowedOrigins,
+  credentials: true,
+}));
 app.use(helmet());
 
 // Performance

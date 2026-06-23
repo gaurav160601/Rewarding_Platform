@@ -14,7 +14,10 @@ function createApolloServer() {
   const server =
     new ApolloServer({
       schema,
-      introspection: true,
+      introspection:
+        process.env
+          .NODE_ENV !==
+        "production",
     });
 
   return server;

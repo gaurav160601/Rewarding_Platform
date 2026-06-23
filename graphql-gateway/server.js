@@ -14,7 +14,15 @@ async function startServer() {
 
   const app = express();
 
-  app.use(cors());
+  const allowedOrigins = (
+    process.env.CORS_ORIGINS ||
+    "http://localhost:5173,http://localhost:3000"
+  ).split(",");
+
+  app.use(cors({
+    origin: allowedOrigins,
+    credentials: true,
+  }));
 
   app.use(express.json());
 
@@ -25,7 +33,10 @@ async function startServer() {
 
   app.use(
     "/graphql",
-    cors(),
+    cors({
+      origin: allowedOrigins,
+      credentials: true,
+    }),
     express.json(),
     applyMiddleware(
       app,

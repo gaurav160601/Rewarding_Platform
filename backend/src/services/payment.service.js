@@ -130,10 +130,10 @@ class PaymentService {
         ],
 
         success_url:
-          "http://localhost:5173/payment-success",
+          `${process.env.CLIENT_URL || "http://localhost:5173"}/payment-success`,
 
         cancel_url:
-          "http://localhost:5173/payment-cancel",
+          `${process.env.CLIENT_URL || "http://localhost:5173"}/payment-cancel`,
 
         metadata: {
           orderId:
