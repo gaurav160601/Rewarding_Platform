@@ -40,8 +40,9 @@ function Cart() {
     }
   };
 
+  const MIN_PAYMENT = 50;
   const redeemInput = Number(redeemPoints) || 0;
-  const maxRedeemable = Math.min(rewardBalance, cart?.total || 0);
+  const maxRedeemable = Math.min(rewardBalance, Math.max(0, (cart?.total || 0) - MIN_PAYMENT));
   const discountAmount = redeemInput > maxRedeemable ? maxRedeemable : redeemInput;
   const finalTotal = (cart?.total || 0) - discountAmount;
 
@@ -201,6 +202,11 @@ function Cart() {
               <p className="text-muted mt-16" style={{ fontSize: "12px" }}>
                 Available: {rewardBalance} points
               </p>
+              {maxRedeemable < rewardBalance && (
+                <p style={{ fontSize: "11px", color: "#f59e0b", marginTop: "4px" }}>
+                  You must pay at least ₹{MIN_PAYMENT} after reward redemption.
+                </p>
+              )}
             </div>
           )}
 

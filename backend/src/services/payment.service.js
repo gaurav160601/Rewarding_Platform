@@ -13,6 +13,8 @@ require("../repositories/product.repository");
 const rewardQueue =
 require("../queues/reward.queue");
 
+const MIN_PAYMENT_AMOUNT = 50;
+
 const PAYMENT_STATUS =
 require("../constants/paymentStatus");
 
@@ -57,6 +59,12 @@ class PaymentService {
       finalAmount > 0
         ? finalAmount
         : 0;
+
+    if (paymentAmount > 0 && paymentAmount < MIN_PAYMENT_AMOUNT) {
+      throw new Error(
+        `Minimum payable amount after rewards redemption must be ₹${MIN_PAYMENT_AMOUNT}.`
+      );
+    }
 
     if (paymentAmount <= 0) {
 

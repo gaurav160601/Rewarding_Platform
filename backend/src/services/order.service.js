@@ -157,6 +157,12 @@ class OrderService {
       const finalAmount =
         totalAmount - discountAmount;
 
+      if (finalAmount > 0 && finalAmount < 50) {
+        throw new Error(
+          "Minimum payable amount after rewards redemption must be ₹50."
+        );
+      }
+
       if (redeemPoints > 0) {
 
         const user =
