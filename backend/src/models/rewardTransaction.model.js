@@ -21,7 +21,8 @@ const rewardTransactionSchema =
         type: String,
         enum: [
           "EARN",
-          "REDEEM"
+          "REDEEM",
+          "REFUND"
         ],
         required: true
       },

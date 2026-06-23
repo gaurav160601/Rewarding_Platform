@@ -6,43 +6,18 @@ class OrderService {
 
   async getAll(token) {
 
-    console.log(
-      "[OrderService] token length:",
-      token?.length
-    );
-
-    console.log(
-      "[OrderService] endpoint:",
-      `${backendClient.defaults.baseURL}/orders`
-    );
-
-    try {
-      const { data } =
-        await backendClient.get(
-          "/orders",
-          {
-            headers: {
-              Authorization:
-                `Bearer ${token}`,
-            },
-          }
-        );
-
-      return data.data;
-
-    } catch (error) {
-
-      console.error(
-        "[OrderService] Status:",
-        error.response?.status,
-        "Body:",
-        JSON.stringify(
-          error.response?.data
-        )
+    const { data } =
+      await backendClient.get(
+        "/orders",
+        {
+          headers: {
+            Authorization:
+              `Bearer ${token}`,
+          },
+        }
       );
 
-      throw error;
-    }
+    return data.data;
   }
 
   async getById(id, token) {
