@@ -9,6 +9,14 @@ const orderResolver = {
         __,
         { token }
       ) => {
+
+        console.log(
+          "[orders resolver] token present:",
+          !!token,
+          "length:",
+          token?.length
+        );
+
         return orderService.getAll(
           token
         );
