@@ -9,6 +9,12 @@ const STATUS_BADGE = {
   REFUNDED: "badge-redeem",
 };
 
+const TYPE_BADGE = {
+  PAYMENT: "badge-earn",
+  REFUND: "badge-redeem",
+  PARTIAL_REFUND: "badge-pending",
+};
+
 function PaymentHistory() {
 
   const [payments,
@@ -110,19 +116,31 @@ function PaymentHistory() {
             <table>
               <thead>
                 <tr>
-                  <th>Payment ID</th>
-                  <th>Order ID</th>
-                  <th>Amount</th>
-                  <th>Payment Status</th>
-                  <th>Order Status</th>
                   <th>Date</th>
+                  <th>Order ID</th>
+                  <th>Type</th>
+                  <th>Amount</th>
+                  <th>Status</th>
                 </tr>
               </thead>
               <tbody>
                 {payments.map(
                   (p) => (
                     <tr key={p.id}>
-                      <td>#{p.id}</td>
+                      <td>
+                        {new Date(
+                          p.created_at
+                        ).toLocaleString(
+                          "en-IN",
+                          {
+                            day: "numeric",
+                            month: "short",
+                            year: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          }
+                        )}
+                      </td>
                       <td>
                         <Link
                           to={`/orders/${p.order_id}`}
@@ -132,8 +150,22 @@ function PaymentHistory() {
                         </Link>
                       </td>
                       <td>
-                        ₹{Number(
-                          p.amount
+                        <span
+                          className={`badge ${
+                            TYPE_BADGE[
+                              p.type || "PAYMENT"
+                            ] ||
+                            "badge-pending"
+                          }`}
+                        >
+                          {p.type || "PAYMENT"}
+                        </span>
+                      </td>
+                      <td style={{ fontWeight: 600, color: p.type === "REFUND" ? "#16a34a" : undefined }}>
+                        {p.type === "REFUND" ? "+" : ""}₹{Number(
+                          p.type === "REFUND"
+                            ? p.refund_amount || p.amount
+                            : p.amount
                         ).toLocaleString(
                           "en-IN"
                         )}
@@ -149,25 +181,6 @@ function PaymentHistory() {
                         >
                           {p.status}
                         </span>
-                      </td>
-                      <td>
-                        <span className="badge badge-processing">
-                          {p.order_status}
-                        </span>
-                      </td>
-                      <td>
-                        {new Date(
-                          p.created_at
-                        ).toLocaleString(
-                          "en-IN",
-                          {
-                            day: "numeric",
-                            month: "short",
-                            year: "numeric",
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          }
-                        )}
                       </td>
                     </tr>
                   )

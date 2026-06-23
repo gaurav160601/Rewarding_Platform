@@ -323,6 +323,28 @@ function OrderDetails() {
         </div>
       )}
 
+      {order.status === "CANCELLED" && finalAmount > 0 && order.paid_at && (
+        <>
+          <h2 className="section-title">Refund Summary</h2>
+          <div className="card mb-24">
+            <div className="summary-row">
+              <span>Refund Amount</span>
+              <span style={{ color: "#16a34a", fontWeight: 600 }}>₹{finalAmount}</span>
+            </div>
+            <div className="summary-row">
+              <span>Refund Status</span>
+              <span className="badge badge-earn">COMPLETED</span>
+            </div>
+            {order.cancelled_at && (
+              <div className="summary-row">
+                <span>Refund Date</span>
+                <span>{new Date(order.cancelled_at).toLocaleString("en-IN", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
+              </div>
+            )}
+          </div>
+        </>
+      )}
+
       {order.status === "CANCELLED" && (pointsRedeemed > 0 || order.paid_at) && (
         <>
           <h2 className="section-title">Reward Adjustments</h2>

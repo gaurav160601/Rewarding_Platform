@@ -127,6 +127,44 @@ class PaymentRepository {
     return rows[0];
   }
 
+  async createRefund(
+    orderId,
+    userId,
+    amount,
+    refundTransactionId
+  ) {
+
+    const [result] =
+      await pool.execute(
+        `
+        INSERT INTO payments
+        (
+          order_id,
+          user_id,
+          type,
+          amount,
+          provider,
+          status,
+          refund_amount,
+          refund_status,
+          refund_date,
+          refund_transaction_id
+        )
+        VALUES
+        (?, ?, 'REFUND', ?, 'SYSTEM', 'REFUNDED', ?, 'COMPLETED', NOW(), ?)
+        `,
+        [
+          orderId,
+          userId,
+          amount,
+          amount,
+          refundTransactionId
+        ]
+      );
+
+    return result.insertId;
+  }
+
   async updateProviderDetails(
     paymentId,
     providerSessionId,

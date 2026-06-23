@@ -4,6 +4,9 @@ require("../database/mysql");
 const orderRepository =
 require("../repositories/order.repository");
 
+const paymentRepository =
+require("../repositories/payment.repository");
+
 const cartRepository =
 require("../repositories/cart.repository");
 
@@ -645,24 +648,34 @@ class OrderService {
 
       await connection.commit();
 
-      if (order.points_redeemed > 0) {
-
-        await rewardRepository.updateUserPoints(
-          order.user_id,
-          order.points_redeemed
-        );
-
-        await rewardRepository.createTransaction({
-          userId: order.user_id,
-          points: order.points_redeemed,
-          type: "REFUND_REDEEMED",
-          description: `Refunded ${order.points_redeemed} redeemed points for cancelled Order #${order.id}`
-        });
-      }
-
       const finalAmount =
         Number(order.total_amount) -
         Number(order.discount_amount || 0);
+
+      if (order.points_redeemed > 0) {
+
+        const existingRefund =
+          await RewardTransaction.findOne({
+            orderId: order.id,
+            type: "REFUND_REDEEMED"
+          });
+
+        if (!existingRefund) {
+
+          await rewardRepository.updateUserPoints(
+            order.user_id,
+            order.points_redeemed
+          );
+
+          await rewardRepository.createTransaction({
+            userId: order.user_id,
+            orderId: order.id,
+            points: order.points_redeemed,
+            type: "REFUND_REDEEMED",
+            description: `Refunded ${order.points_redeemed} redeemed points for cancelled Order #${order.id}`
+          });
+        }
+      }
 
       if (
         finalAmount > 0 &&
@@ -699,6 +712,16 @@ class OrderService {
             });
           }
         }
+
+        const refundTxnId =
+          `REF_${order.id}_${Date.now()}`;
+
+        await paymentRepository.createRefund(
+          order.id,
+          order.user_id,
+          finalAmount,
+          refundTxnId
+        );
       }
 
       const orderUser =
