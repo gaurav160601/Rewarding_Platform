@@ -44,6 +44,9 @@ function Products() {
       }
     };
     fetchProducts();
+    const onFocus = () => fetchProducts();
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
   }, []);
 
   if (loading) {
