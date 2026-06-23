@@ -7,6 +7,9 @@ require("../repositories/payment.repository");
 const orderRepository =
 require("../repositories/order.repository");
 
+const productRepository =
+require("../repositories/product.repository");
+
 const rewardQueue =
 require("../queues/reward.queue");
 
@@ -17,6 +20,16 @@ const ORDER_STATUS =
 require("../constants/orderStatus");
 
 class PaymentService {
+
+  async getPaymentHistory(userId) {
+
+    const payments =
+      await paymentRepository.findByUserId(
+        userId
+      );
+
+    return payments;
+  }
 
   async createSession(
     orderId,
@@ -34,11 +47,56 @@ class PaymentService {
       );
     }
 
+    const finalAmount =
+      Number(order.total_amount) -
+      Number(
+        order.discount_amount || 0
+      );
+
+    const paymentAmount =
+      finalAmount > 0
+        ? finalAmount
+        : 0;
+
+    if (paymentAmount <= 0) {
+
+      await orderRepository.updateOrderStatus(
+        order.id,
+        ORDER_STATUS.PAID,
+        null,
+        "paid_at"
+      );
+
+      await rewardQueue.add(
+        "earnReward",
+        {
+          userId,
+          orderId: order.id,
+          amount: 0
+        },
+        {
+          attempts: 3,
+          backoff: {
+            type: "exponential",
+            delay: 2000
+          }
+        }
+      );
+
+      return {
+        paymentId: null,
+        sessionId: null,
+        checkoutUrl: null,
+        message:
+          "Order paid with points. No payment needed."
+      };
+    }
+
     const paymentId =
       await paymentRepository.createPayment(
         order.id,
         userId,
-        order.total_amount,
+        paymentAmount,
         "STRIPE"
       );
 
@@ -63,7 +121,7 @@ class PaymentService {
 
               unit_amount:
                 Math.round(
-                  Number(order.total_amount) * 100
+                  Number(paymentAmount) * 100
                 )
             },
 
@@ -72,10 +130,10 @@ class PaymentService {
         ],
 
         success_url:
-          "http://localhost:5000/payment-success",
+          "http://localhost:5173/payment-success",
 
         cancel_url:
-          "http://localhost:5000/payment-cancel",
+          "http://localhost:5173/payment-cancel",
 
         metadata: {
           orderId:
@@ -99,6 +157,96 @@ class PaymentService {
       checkoutUrl:
         session.url
     };
+  }
+
+  async retryPayment(
+    orderId,
+    userId
+  ) {
+
+    const order =
+      await orderRepository.getOrderById(
+        orderId
+      );
+
+    if (!order) {
+      throw new Error(
+        "Order not found"
+      );
+    }
+
+    if (
+      Number(order.user_id) !==
+      Number(userId)
+    ) {
+      throw new Error(
+        "Order does not belong to this user"
+      );
+    }
+
+    if (
+      order.status !==
+      "PAYMENT_PENDING"
+    ) {
+      throw new Error(
+        "Only PAYMENT_PENDING orders can be retried"
+      );
+    }
+
+    if (
+      order.payment_expires_at &&
+      new Date() >
+        new Date(
+          order.payment_expires_at
+        )
+    ) {
+
+      await orderRepository.updateOrderStatus(
+        orderId,
+        ORDER_STATUS.PAYMENT_EXPIRED
+      );
+
+      throw new Error(
+        "Payment session expired. Please place a new order."
+      );
+    }
+
+    const orderItems =
+      await orderRepository.getOrderItems(
+        orderId
+      );
+
+    for (
+      const item of orderItems
+    ) {
+
+      const product =
+        await productRepository.getProductById(
+          item.product_id
+        );
+
+      if (
+        !product ||
+        !product.is_active ||
+        item.quantity >
+          product.stock
+      ) {
+
+        await orderRepository.updateOrderStatus(
+          orderId,
+          ORDER_STATUS.PAYMENT_EXPIRED
+        );
+
+        throw new Error(
+          "One or more items are no longer available."
+        );
+      }
+    }
+
+    return this.createSession(
+      orderId,
+      userId
+    );
   }
 
   async handleWebhook(
@@ -156,6 +304,19 @@ class PaymentService {
       return;
     }
 
+    const order =
+      await orderRepository.getOrderById(
+        payment.order_id
+      );
+
+    if (
+      order &&
+      order.status ===
+        ORDER_STATUS.PAID
+    ) {
+      return;
+    }
+
     await paymentRepository.updateStatus(
       payment.id,
       PAYMENT_STATUS.SUCCESS
@@ -163,7 +324,9 @@ class PaymentService {
 
     await orderRepository.updateOrderStatus(
       payment.order_id,
-      ORDER_STATUS.PAID
+      ORDER_STATUS.PAID,
+      null,
+      "paid_at"
     );
 
     await rewardQueue.add(
@@ -176,7 +339,9 @@ class PaymentService {
           payment.order_id,
 
         amount:
-          payment.amount
+          Number(
+            payment.amount
+          )
       },
 
       {

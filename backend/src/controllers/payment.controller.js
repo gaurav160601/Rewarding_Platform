@@ -3,6 +3,31 @@ require("../services/payment.service");
 
 class PaymentController {
 
+  async getPaymentHistory(
+    req,
+    res,
+    next
+  ) {
+
+    try {
+
+      const payments =
+        await paymentService.getPaymentHistory(
+          req.user.id
+        );
+
+      return res.status(200).json({
+        success: true,
+        data: payments
+      });
+
+    } catch (error) {
+
+      next(error);
+
+    }
+  }
+
   async createSession(
     req,
     res,
@@ -18,6 +43,32 @@ class PaymentController {
         );
 
       return res.status(201).json({
+        success: true,
+        data: result
+      });
+
+    } catch (error) {
+
+      next(error);
+
+    }
+  }
+
+  async retryPayment(
+    req,
+    res,
+    next
+  ) {
+
+    try {
+
+      const result =
+        await paymentService.retryPayment(
+          req.params.orderId,
+          req.user.id
+        );
+
+      return res.status(200).json({
         success: true,
         data: result
       });

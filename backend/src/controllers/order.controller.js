@@ -13,7 +13,9 @@ class OrderController {
 
       const result =
         await orderService.checkout(
-          req.user.id
+          req.user.id,
+          req.body.redeemPoints ||
+            0
         );
 
       return res.status(201).json({
@@ -38,7 +40,8 @@ class OrderController {
 
       const result =
         await orderService.getMyOrders(
-          req.user.id
+          req.user.id,
+          req.user.role
         );
 
       return res.status(200).json({

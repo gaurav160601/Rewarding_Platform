@@ -1,4 +1,5 @@
 const authService = require("../services/auth.service");
+const userRepository = require("../repositories/user.repository");
 
 class AuthController {
     async register(req, res, next) {
@@ -29,13 +30,17 @@ class AuthController {
             next(error);
         }
     }
-    async profile(req, res) {
-
-  return res.status(200).json({
-    success: true,
-    data: req.user,
-  });
-
+    async profile(req, res, next) {
+    try {
+      const user = await userRepository.findById(req.user.id);
+      if (!user) {
+        return res.status(404).json({ success: false, message: "User not found" });
+      }
+      const { password_hash, ...safeUser } = user;
+      return res.status(200).json({ success: true, data: safeUser });
+    } catch (error) {
+      next(error);
+    }
 }
 }
 

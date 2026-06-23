@@ -84,7 +84,7 @@ class CartRepository {
         ON ci.product_id = p.id
 
         WHERE ci.cart_id = ?
-        AND p.status = 'ACTIVE'
+        AND p.is_active = TRUE
         `,
         [cartId]
       );

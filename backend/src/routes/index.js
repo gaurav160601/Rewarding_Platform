@@ -12,6 +12,7 @@ const orderRoutes = require("./order.routes");
 const paymentRoutes = require("./payment.routes");
 
 const rewardRoutes = require("./reward.routes");
+const adminRoutes = require("./admin.routes");
 
 router.use("/health", healthRoutes);
 router.use("/auth", authRoutes);
@@ -20,6 +21,6 @@ router.use("/cart", cartRoutes);
 router.use("/orders", orderRoutes);
 router.use("/payments",paymentRoutes);
 router.use("/rewards", rewardRoutes);
-
+router.use("/admin", adminRoutes);
 
 module.exports = router;

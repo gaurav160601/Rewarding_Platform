@@ -1,6 +1,9 @@
 const rewardRepository =
 require("../repositories/reward.repository");
 
+const RewardTransaction =
+require("../models/rewardTransaction.model");
+
 class RewardService {
 
   calculatePoints(
@@ -25,6 +28,16 @@ class RewardService {
 
     if (points <= 0) {
       return null;
+    }
+
+    const existing =
+      await RewardTransaction.findOne({
+        orderId,
+        type: "EARN"
+      });
+
+    if (existing) {
+      return existing;
     }
 
     await rewardRepository.updateUserPoints(

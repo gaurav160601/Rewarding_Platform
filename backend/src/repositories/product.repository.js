@@ -5,7 +5,13 @@ class ProductRepository {
     async createProduct(product) {
         const [result] = await pool.execute(
             `INSERT INTO products ( name, description, price,stock,sku) VALUES ( ?,?, ?, ?, ?)`,
-            [product.name, product.description, product.price, product.stock, product.sku]
+            [
+              product.name ?? null,
+              product.description ?? null,
+              product.price ?? null,
+              product.stock ?? null,
+              product.sku ?? null,
+            ]
         );
         return result.insertId;
     }
@@ -41,6 +47,7 @@ class ProductRepository {
                 `
         SELECT *
         FROM products
+        WHERE is_active = TRUE
         ORDER BY id DESC
         LIMIT ${limit}
         OFFSET ${offset}
@@ -58,6 +65,7 @@ class ProductRepository {
         SELECT *
         FROM products
         WHERE name LIKE ?
+        AND is_active = TRUE
         `,
                 [`%${keyword}%`]
             );
@@ -68,26 +76,26 @@ class ProductRepository {
 
     async update(id, product) {
 
+        const fields = [];
+        const values = [];
+
+        for (const [key, value] of Object.entries(product)) {
+            if (key === 'id') continue;
+            if (value === undefined) continue;
+            fields.push(`${key} = ?`);
+            values.push(value ?? null);
+        }
+
+        if (fields.length === 0) {
+            throw new Error("No fields to update");
+        }
+
+        values.push(id);
+
         const [result] =
             await pool.execute(
-                `
-      UPDATE products
-      SET
-        name = ?,
-        description = ?,
-        price = ?,
-        stock = ?,
-        sku = ?
-      WHERE id = ?
-      `,
-                [
-                    product.name,
-                    product.description,
-                    product.price,
-                    product.stock,
-                    product.sku,
-                    id
-                ]
+                `UPDATE products SET ${fields.join(', ')} WHERE id = ? AND is_active = TRUE`,
+                values
             );
 
         return result.affectedRows;
@@ -99,7 +107,7 @@ class ProductRepository {
             await pool.execute(
                 `
       UPDATE products
-      SET status = 'INACTIVE'
+      SET is_active = FALSE
       WHERE id = ?
       `,
                 [id]
@@ -115,7 +123,7 @@ class ProductRepository {
                 `
       SELECT COUNT(*) AS total
       FROM products
-      WHERE status='ACTIVE'
+      WHERE is_active = TRUE
       `
             );
 
@@ -166,10 +174,13 @@ class ProductRepository {
   async restoreStock(
     productId,
     quantity,
-    connection
+    connection = null
   ) {
 
-    await connection.execute(
+    const executor =
+      connection || pool;
+
+    await executor.execute(
       `
       UPDATE products
       SET stock = stock + ?

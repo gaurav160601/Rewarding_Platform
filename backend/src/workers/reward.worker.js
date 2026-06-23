@@ -4,6 +4,15 @@ require("bullmq");
 const rewardService =
 require("../services/reward.service");
 
+const userRepository =
+require("../repositories/user.repository");
+
+const rewardRepository =
+require("../repositories/reward.repository");
+
+const emailQueue =
+require("../queues/email.queue");
+
 const redisClient =
 require("../config/redis.config");
 
@@ -20,11 +29,43 @@ new Worker(
       amount
     } = job.data;
 
-    await rewardService.earnPoints(
-      userId,
-      orderId,
-      amount
-    );
+    const result =
+      await rewardService.earnPoints(
+        userId,
+        orderId,
+        amount
+      );
+
+    if (result && result.points > 0) {
+
+      const user =
+        await userRepository.findById(
+          userId
+        );
+
+      const balanceData =
+        await rewardRepository.getUserPoints(
+          userId
+        );
+
+      await emailQueue.add(
+        "REWARD_EARNED",
+        {
+          email: user.email,
+          points:
+            result.points,
+          balance:
+            balanceData.reward_points
+        },
+        {
+          attempts: 3,
+          backoff: {
+            type: "exponential",
+            delay: 5000
+          }
+        }
+      );
+    }
   },
 
   {

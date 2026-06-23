@@ -40,7 +40,7 @@ class CartService {
     }
 
     if (
-      product.status !== "ACTIVE"
+      !product.is_active
     ) {
       throw new Error(
         "Product is not available"
@@ -212,7 +212,7 @@ class CartService {
     }
 
     if (
-      product.status !== "ACTIVE"
+      !product.is_active
     ) {
       throw new Error(
         "Product is not available"

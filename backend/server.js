@@ -13,6 +13,10 @@ require(
   "./src/workers/reward.worker"
 );
 
+require(
+  "./src/workers/email.worker"
+);
+
 const redisClient =
 require("./src/config/redis.config");
 
@@ -21,7 +25,11 @@ const startServer = async () => {
 
     await connectMySQL();
 
-    await connectMongo();
+    try {
+      await connectMongo();
+    } catch {
+      console.log(" MongoDB unavailable — reward features disabled");
+    }
 
     app.listen(config.port, () => {
       console.log(

@@ -91,7 +91,7 @@ class ProductService {
         offset
       );
 
-    await redisClient.setEx(
+    await redisClient.setex(
       cacheKey,
       300,
       JSON.stringify(result)

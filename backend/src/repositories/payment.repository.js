@@ -89,6 +89,27 @@ class PaymentRepository {
     return result.affectedRows;
   }
 
+  async findByUserId(userId) {
+
+    const [rows] =
+      await pool.execute(
+        `
+        SELECT
+          p.*,
+          o.status AS order_status,
+          o.total_amount AS order_total
+        FROM payments p
+        JOIN orders o
+          ON p.order_id = o.id
+        WHERE p.user_id = ?
+        ORDER BY p.id DESC
+        `,
+        [userId]
+      );
+
+    return rows;
+  }
+
   async findBySessionId(
     sessionId
   ) {

@@ -6,7 +6,10 @@ class OrderRepository {
   async createOrder(
     userId,
     totalAmount,
-    connection
+    connection,
+    pointsRedeemed = 0,
+    discountAmount = 0,
+    paymentExpiresAt = null
   ) {
 
     const [result] =
@@ -16,14 +19,20 @@ class OrderRepository {
         (
           user_id,
           total_amount,
-          status
+          status,
+          points_redeemed,
+          discount_amount,
+          payment_expires_at
         )
         VALUES
-        (?, ?, 'PAYMENT_PENDING')
+        (?, ?, 'PAYMENT_PENDING', ?, ?, ?)
         `,
         [
           userId,
-          totalAmount
+          totalAmount,
+          pointsRedeemed,
+          discountAmount,
+          paymentExpiresAt
         ]
       );
 
@@ -59,6 +68,20 @@ class OrderRepository {
         item.subtotal
       ]
     );
+  }
+
+  async getAllOrders() {
+
+    const [rows] =
+      await pool.execute(
+        `
+        SELECT *
+        FROM orders
+        ORDER BY id DESC
+        `
+      );
+
+    return rows;
   }
 
   async getOrdersByUserId(
@@ -133,22 +156,30 @@ class OrderRepository {
   async updateOrderStatus(
     orderId,
     status,
-    connection = null
+    connection = null,
+    timestampColumn = null
   ) {
 
     const executor =
       connection || pool;
 
-    await executor.execute(
-      `
+    let sql = `
       UPDATE orders
       SET status = ?
-      WHERE id = ?
-      `,
-      [
-        status,
-        orderId
-      ]
+    `;
+
+    const params = [status];
+
+    if (timestampColumn) {
+      sql += `, ${timestampColumn} = NOW()`;
+    }
+
+    sql += ` WHERE id = ?`;
+    params.push(orderId);
+
+    await executor.execute(
+      sql,
+      params
     );
   }
 

@@ -10,6 +10,18 @@ require("../repositories/cart.repository");
 const productRepository =
 require("../repositories/product.repository");
 
+const rewardRepository =
+require("../repositories/reward.repository");
+
+const rewardService =
+require("../services/reward.service");
+
+const userRepository =
+require("../repositories/user.repository");
+
+const emailQueue =
+require("../queues/email.queue");
+
 const ORDER_STATUS =
 require("../constants/orderStatus");
 
@@ -19,7 +31,51 @@ const {
 
 class OrderService {
 
-  async checkout(userId) {
+  async checkout(
+    userId,
+    redeemPoints = 0
+  ) {
+
+    const existingOrders =
+      await orderRepository.getOrdersByUserId(
+        userId
+      );
+
+    const activeOrder =
+      existingOrders.find(
+        (o) =>
+          o.status ===
+            "PAYMENT_PENDING" &&
+          o.payment_expires_at &&
+          new Date() <
+            new Date(
+              o.payment_expires_at
+            )
+      );
+
+    if (activeOrder) {
+      return {
+        orderId:
+          activeOrder.id,
+        totalAmount:
+          Number(
+            activeOrder.total_amount
+          ),
+        discountAmount:
+          Number(
+            activeOrder.discount_amount || 0
+          ),
+        finalAmount:
+          Number(
+            activeOrder.total_amount
+          ) -
+          Number(
+            activeOrder.discount_amount || 0
+          ),
+        message:
+          "Existing pending order found"
+      };
+    }
 
     const connection =
       await pool.getConnection();
@@ -72,7 +128,7 @@ class OrderService {
         }
 
         if (
-          product.status !== "ACTIVE"
+          !product.is_active
         ) {
           throw new Error(
             `${item.name} is not available`
@@ -92,12 +148,67 @@ class OrderService {
           item.quantity;
       }
 
+      const discountAmount =
+        Math.min(
+          redeemPoints,
+          totalAmount
+        );
+
+      const finalAmount =
+        totalAmount - discountAmount;
+
+      if (redeemPoints > 0) {
+
+        const user =
+          await rewardRepository
+            .getUserRewardBalance(
+              userId
+            );
+
+        if (
+          user.reward_points <
+          redeemPoints
+        ) {
+          throw new Error(
+            "Insufficient reward points"
+          );
+        }
+      }
+
+      const paymentExpiresAt =
+        new Date(
+          Date.now() +
+          5 * 60 * 1000
+        );
+
       const orderId =
         await orderRepository.createOrder(
           userId,
           totalAmount,
-          connection
+          connection,
+          redeemPoints,
+          discountAmount,
+          paymentExpiresAt
         );
+
+      if (redeemPoints > 0) {
+
+        await rewardRepository
+          .deductUserPoints(
+            userId,
+            redeemPoints
+          );
+
+        await rewardRepository
+          .createTransaction({
+            userId,
+            points:
+              -redeemPoints,
+            type: "REDEEM",
+            description:
+              `Redeemed ${redeemPoints} points for Order #${orderId}`
+          });
+      }
 
       for (
         const item of cartItems
@@ -150,6 +261,11 @@ class OrderService {
       return {
         orderId,
         totalAmount,
+        discountAmount,
+        finalAmount:
+          finalAmount > 0
+            ? finalAmount
+            : 0,
         message:
           "Order placed successfully"
       };
@@ -167,14 +283,88 @@ class OrderService {
     }
   }
 
-  async getMyOrders(
-    userId
+  async expireIfStale(
+    order
   ) {
 
-    return orderRepository.getOrdersByUserId(
-      userId
-    );
+    if (
+      order.status ===
+        "PAYMENT_PENDING" &&
+      order.payment_expires_at &&
+      new Date() >
+        new Date(
+          order.payment_expires_at
+        )
+    ) {
 
+      const items =
+        await orderRepository.getOrderItems(
+          order.id
+        );
+
+      for (
+        const item of items
+      ) {
+
+        await productRepository.restoreStock(
+          item.product_id,
+          item.quantity
+        );
+      }
+
+      if (order.points_redeemed > 0) {
+
+        await rewardRepository.updateUserPoints(
+          order.user_id,
+          order.points_redeemed
+        );
+
+        await rewardRepository.createTransaction({
+          userId: order.user_id,
+          points: order.points_redeemed,
+          type: "REFUND",
+          description: `Refunded ${order.points_redeemed} points for expired Order #${order.id}`
+        });
+      }
+
+      await orderRepository.updateOrderStatus(
+        order.id,
+        ORDER_STATUS.PAYMENT_EXPIRED
+      );
+
+      order.status =
+        ORDER_STATUS.PAYMENT_EXPIRED;
+    }
+
+    return order;
+  }
+
+  async getMyOrders(
+    userId,
+    userRole
+  ) {
+
+    if (
+      userRole === ADMIN
+    ) {
+      return orderRepository
+        .getAllOrders();
+    }
+
+    const orders =
+      await orderRepository.getOrdersByUserId(
+        userId
+      );
+
+    for (
+      const order of orders
+    ) {
+      await this.expireIfStale(
+        order
+      );
+    }
+
+    return orders;
   }
 
   async getOrder(
@@ -206,6 +396,17 @@ class OrderService {
       );
     }
 
+    await this.expireIfStale(
+      order
+    );
+
+    const items =
+      await orderRepository.getOrderItems(
+        orderId
+      );
+
+    order.items = items;
+
     return order;
   }
 
@@ -236,7 +437,9 @@ class OrderService {
 
     await orderRepository.updateOrderStatus(
       orderId,
-      ORDER_STATUS.PROCESSING
+      ORDER_STATUS.PROCESSING,
+      null,
+      "processed_at"
     );
 
     return orderRepository.getOrderById(
@@ -271,7 +474,29 @@ class OrderService {
 
     await orderRepository.updateOrderStatus(
       orderId,
-      ORDER_STATUS.SHIPPED
+      ORDER_STATUS.SHIPPED,
+      null,
+      "shipped_at"
+    );
+
+    const user =
+      await userRepository.findById(
+        order.user_id
+      );
+
+    await emailQueue.add(
+      "ORDER_SHIPPED",
+      {
+        email: user.email,
+        orderId
+      },
+      {
+        attempts: 3,
+        backoff: {
+          type: "exponential",
+          delay: 5000
+        }
+      }
     );
 
     return orderRepository.getOrderById(
@@ -306,7 +531,29 @@ class OrderService {
 
     await orderRepository.updateOrderStatus(
       orderId,
-      ORDER_STATUS.DELIVERED
+      ORDER_STATUS.DELIVERED,
+      null,
+      "delivered_at"
+    );
+
+    const user =
+      await userRepository.findById(
+        order.user_id
+      );
+
+    await emailQueue.add(
+      "ORDER_DELIVERED",
+      {
+        email: user.email,
+        orderId
+      },
+      {
+        attempts: 3,
+        backoff: {
+          type: "exponential",
+          delay: 5000
+        }
+      }
     );
 
     return orderRepository.getOrderById(
@@ -350,11 +597,15 @@ class OrderService {
         );
       }
 
-      if (
-        order.status !== "PENDING"
-      ) {
+      const cancelable = [
+        ORDER_STATUS.PAYMENT_PENDING,
+        ORDER_STATUS.PAID,
+        ORDER_STATUS.PROCESSING
+      ];
+
+      if (!cancelable.includes(order.status)) {
         throw new Error(
-          "Only pending orders can be cancelled"
+          "Order can no longer be cancelled."
         );
       }
 
@@ -376,11 +627,47 @@ class OrderService {
 
       await orderRepository.updateOrderStatus(
         orderId,
-        "CANCELLED",
-        connection
+        ORDER_STATUS.CANCELLED,
+        connection,
+        "cancelled_at"
       );
 
       await connection.commit();
+
+      if (order.points_redeemed > 0) {
+
+        await rewardRepository.updateUserPoints(
+          order.user_id,
+          order.points_redeemed
+        );
+
+        await rewardRepository.createTransaction({
+          userId: order.user_id,
+          points: order.points_redeemed,
+          type: "REFUND",
+          description: `Refunded ${order.points_redeemed} points for cancelled Order #${order.id}`
+        });
+      }
+
+      const orderUser =
+        await userRepository.findById(
+          order.user_id
+        );
+
+      await emailQueue.add(
+        "ORDER_CANCELLED",
+        {
+          email: orderUser.email,
+          orderId
+        },
+        {
+          attempts: 3,
+          backoff: {
+            type: "exponential",
+            delay: 5000
+          }
+        }
+      );
 
       return {
         message:

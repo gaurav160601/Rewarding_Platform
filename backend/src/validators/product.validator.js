@@ -2,12 +2,12 @@ const validateProduct = (data) => {
 
   const errors = [];
 
-  if (!data.name || data.name.trim() === "") {
+  if (data.name !== undefined && (!data.name || data.name.trim() === "")) {
     errors.push("Product name is required");
   }
 
   if (
-    data.price === undefined ||
+    data.price !== undefined &&
     data.price <= 0
   ) {
     errors.push(
@@ -16,7 +16,7 @@ const validateProduct = (data) => {
   }
 
   if (
-    data.stock === undefined ||
+    data.stock !== undefined &&
     data.stock < 0
   ) {
     errors.push(
@@ -24,8 +24,12 @@ const validateProduct = (data) => {
     );
   }
 
-  if (!data.sku || data.sku.trim() === "") {
+  if (data.sku !== undefined && (!data.sku || data.sku.trim() === "")) {
     errors.push("SKU is required");
+  }
+
+  if (data.name === undefined && data.price === undefined && data.stock === undefined && data.sku === undefined) {
+    errors.push("No valid fields provided for update");
   }
 
   return errors;
