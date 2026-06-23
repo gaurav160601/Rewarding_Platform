@@ -316,11 +316,33 @@ function OrderDetails() {
         </div>
       </div>
 
-      {pointsRedeemed > 0 && (
+      {pointsRedeemed > 0 && order.status !== "CANCELLED" && (
         <div className="reward-banner">
           <span>🎉</span>
           <span>Reward Discount Applied</span>
         </div>
+      )}
+
+      {order.status === "CANCELLED" && (pointsRedeemed > 0 || order.paid_at) && (
+        <>
+          <h2 className="section-title">Reward Adjustments</h2>
+          <div className="card mb-24">
+            {pointsRedeemed > 0 && (
+              <div className="summary-row">
+                <span>Redeemed Points Returned</span>
+                <span style={{ color: "#16a34a", fontWeight: 600 }}>+{pointsRedeemed}</span>
+              </div>
+            )}
+            {order.paid_at && finalAmount > 0 && (
+              <div className="summary-row">
+                <span>Earned Points Reversed</span>
+                <span style={{ color: "#dc2626", fontWeight: 600 }}>
+                  -{Math.floor(finalAmount / 10)}
+                </span>
+              </div>
+            )}
+          </div>
+        </>
       )}
 
       <h2 className="section-title">Items</h2>

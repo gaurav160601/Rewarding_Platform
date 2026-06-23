@@ -22,7 +22,9 @@ const rewardTransactionSchema =
         enum: [
           "EARN",
           "REDEEM",
-          "REFUND"
+          "REFUND",
+          "REFUND_REDEEMED",
+          "REVERSE_EARN"
         ],
         required: true
       },

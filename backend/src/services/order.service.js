@@ -13,6 +13,9 @@ require("../repositories/product.repository");
 const rewardRepository =
 require("../repositories/reward.repository");
 
+const RewardTransaction =
+require("../models/rewardTransaction.model");
+
 const rewardService =
 require("../services/reward.service");
 
@@ -328,8 +331,8 @@ class OrderService {
         await rewardRepository.createTransaction({
           userId: order.user_id,
           points: order.points_redeemed,
-          type: "REFUND",
-          description: `Refunded ${order.points_redeemed} points for expired Order #${order.id}`
+          type: "REFUND_REDEEMED",
+          description: `Refunded ${order.points_redeemed} redeemed points for expired Order #${order.id}`
         });
       }
 
@@ -615,6 +618,8 @@ class OrderService {
         );
       }
 
+      const previousStatus = order.status;
+
       const orderItems =
         await orderRepository.getOrderItems(
           orderId
@@ -650,9 +655,50 @@ class OrderService {
         await rewardRepository.createTransaction({
           userId: order.user_id,
           points: order.points_redeemed,
-          type: "REFUND",
-          description: `Refunded ${order.points_redeemed} points for cancelled Order #${order.id}`
+          type: "REFUND_REDEEMED",
+          description: `Refunded ${order.points_redeemed} redeemed points for cancelled Order #${order.id}`
         });
+      }
+
+      const finalAmount =
+        Number(order.total_amount) -
+        Number(order.discount_amount || 0);
+
+      if (
+        finalAmount > 0 &&
+        previousStatus !== "PAYMENT_PENDING"
+      ) {
+
+        const existingReversal =
+          await RewardTransaction.findOne({
+            orderId: order.id,
+            type: "REVERSE_EARN"
+          });
+
+        if (!existingReversal) {
+
+          const earnTxn =
+            await RewardTransaction.findOne({
+              orderId: order.id,
+              type: "EARN"
+            });
+
+          if (earnTxn) {
+
+            await rewardRepository.updateUserPoints(
+              order.user_id,
+              -earnTxn.points
+            );
+
+            await rewardRepository.createTransaction({
+              userId: order.user_id,
+              orderId: order.id,
+              points: -earnTxn.points,
+              type: "REVERSE_EARN",
+              description: `Reversed ${earnTxn.points} earned points for cancelled Order #${order.id}`
+            });
+          }
+        }
       }
 
       const orderUser =
