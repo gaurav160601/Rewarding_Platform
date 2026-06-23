@@ -1,6 +1,9 @@
 const { pool } =
 require("../database/mysql");
 
+const redisClient =
+require("../config/redis.config");
+
 const orderRepository =
 require("../repositories/order.repository");
 
@@ -34,6 +37,17 @@ require("../constants/orderStatus");
 const {
   ADMIN
 } = require("../constants/roles");
+
+async function clearProductCache() {
+  try {
+    const keys = await redisClient.keys("products:*");
+    if (keys.length > 0) {
+      await redisClient.del(keys);
+    }
+  } catch (err) {
+    console.error("Cache clear error:", err.message);
+  }
+}
 
 class OrderService {
 
@@ -270,6 +284,8 @@ class OrderService {
 
       await connection.commit();
 
+      await clearProductCache();
+
       return {
         orderId,
         totalAmount,
@@ -346,6 +362,8 @@ class OrderService {
 
       order.status =
         ORDER_STATUS.PAYMENT_EXPIRED;
+
+      await clearProductCache();
     }
 
     return order;
@@ -647,6 +665,8 @@ class OrderService {
       );
 
       await connection.commit();
+
+      await clearProductCache();
 
       const finalAmount =
         Number(order.total_amount) -
