@@ -89,7 +89,7 @@ class RewardService {
     await rewardRepository
       .createTransaction({
         userId,
-        points,
+        points: Math.floor(points),
         type: "REDEEM",
         description:
           `Redeemed ${points} points`

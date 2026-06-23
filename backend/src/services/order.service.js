@@ -229,7 +229,7 @@ class OrderService {
           .createTransaction({
             userId,
             points:
-              -redeemPoints,
+              -Math.floor(redeemPoints),
             type: "REDEEM",
             description:
               `Redeemed ${redeemPoints} points for Order #${orderId}`

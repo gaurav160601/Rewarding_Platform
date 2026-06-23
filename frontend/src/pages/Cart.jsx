@@ -41,8 +41,8 @@ function Cart() {
   };
 
   const MIN_PAYMENT = 50;
-  const redeemInput = Number(redeemPoints) || 0;
-  const maxRedeemable = Math.min(rewardBalance, Math.max(0, (cart?.total || 0) - MIN_PAYMENT));
+  const redeemInput = Math.floor(Number(redeemPoints)) || 0;
+  const maxRedeemable = Math.floor(Math.min(rewardBalance, Math.max(0, (cart?.total || 0) - MIN_PAYMENT)));
   const discountAmount = redeemInput > maxRedeemable ? maxRedeemable : redeemInput;
   const finalTotal = (cart?.total || 0) - discountAmount;
 

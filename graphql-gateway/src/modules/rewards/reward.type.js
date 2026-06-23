@@ -10,7 +10,7 @@ const RewardType = gql`
     id: ID
     userId: Int
     orderId: Int
-    points: Int
+    points: Float
     type: String
     description: String
     createdAt: String
