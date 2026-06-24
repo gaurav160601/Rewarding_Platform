@@ -41,7 +41,6 @@ async function disconnectProducer() {
 
 async function sendMessage(topic, payload) {
   if (!producer || !connected) {
-    console.log(`[KAFKA] Producer not connected — skipping ${topic}`);
     return;
   }
   try {
