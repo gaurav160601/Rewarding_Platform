@@ -3,6 +3,8 @@ const { generateAccessToken } = require("../utils/jwt");
 const userRepository = require("../repositories/user.repository");
 const role = require("../constants/roles");
 const emailQueue = require("../queues/email.queue");
+const { sendMessage } = require("../producers/order.producer");
+const TOPICS = require("../topics/kafka.topics");
 
 class AuthService {
     async register(data) {
@@ -40,6 +42,12 @@ class AuthService {
                 }
             }
         );
+
+        sendMessage(TOPICS.USER_REGISTERED, {
+            email: data.email,
+            userId,
+            name: data.name || data.email
+        });
 
         return { userId };
     }

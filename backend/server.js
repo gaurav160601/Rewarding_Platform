@@ -17,6 +17,8 @@ require(
   "./src/workers/email.worker"
 );
 
+const { startKafka, stopKafka } = require("./src/kafka.bootstrap");
+
 const redisClient =
 require("./src/config/redis.config");
 
@@ -31,11 +33,25 @@ const startServer = async () => {
       console.log(" MongoDB unavailable — reward features disabled");
     }
 
-    app.listen(config.port, () => {
+    await startKafka();
+
+    const server = app.listen(config.port, () => {
       console.log(
         `Server running on port ${config.port}`
       );
     });
+
+    const gracefulShutdown = async (signal) => {
+      console.log(`\n ${signal} received — shutting down gracefully...`);
+      await stopKafka();
+      server.close(() => {
+        console.log(" HTTP server closed");
+        process.exit(0);
+      });
+    };
+
+    process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+    process.on("SIGINT", () => gracefulShutdown("SIGINT"));
 
   } catch (error) {
 

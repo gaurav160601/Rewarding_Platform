@@ -16,6 +16,9 @@ require("../queues/reward.queue");
 const emailQueue =
 require("../queues/email.queue");
 
+const { sendMessage } = require("../producers/order.producer");
+const TOPICS = require("../topics/kafka.topics");
+
 const userRepository =
 require("../repositories/user.repository");
 
@@ -369,6 +372,15 @@ class PaymentService {
         }
       }
     );
+
+    sendMessage(TOPICS.PAYMENT_COMPLETED, {
+      email: payer.email,
+      orderId: payment.order_id,
+      userId: payment.user_id,
+      amount: payment.amount,
+      earnedPoints,
+      status: "COMPLETED"
+    });
 
     await rewardQueue.add(
       "earnReward",

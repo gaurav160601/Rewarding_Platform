@@ -31,6 +31,9 @@ require("../repositories/user.repository");
 const emailQueue =
 require("../queues/email.queue");
 
+const { sendMessage } = require("../producers/order.producer");
+const TOPICS = require("../topics/kafka.topics");
+
 const ORDER_STATUS =
 require("../constants/orderStatus");
 
@@ -312,6 +315,15 @@ class OrderService {
         }
       );
 
+      sendMessage(TOPICS.ORDER_CREATED, {
+        email: orderUser.email,
+        orderId,
+        userId,
+        totalAmount,
+        redeemedPoints: redeemPoints || 0,
+        finalAmount: finalAmount > 0 ? finalAmount : 0
+      });
+
       return {
         orderId,
         totalAmount,
@@ -555,6 +567,11 @@ class OrderService {
       }
     );
 
+    sendMessage(TOPICS.ORDER_SHIPPED, {
+      email: user.email,
+      orderId
+    });
+
     return orderRepository.getOrderById(
       orderId
     );
@@ -611,6 +628,11 @@ class OrderService {
         }
       }
     );
+
+    sendMessage(TOPICS.ORDER_DELIVERED, {
+      email: user.email,
+      orderId
+    });
 
     return orderRepository.getOrderById(
       orderId
@@ -813,10 +835,12 @@ class OrderService {
         }
       );
 
-      if (
-        finalAmount > 0 &&
+      const refundTxn = finalAmount > 0 &&
         previousStatus !== "PAYMENT_PENDING"
-      ) {
+        ? refundTxnId || `REF_${order.id}_${Date.now()}`
+        : null;
+
+      if (refundTxn) {
 
         await emailQueue.add(
           "REFUND_PROCESSED",
@@ -824,8 +848,7 @@ class OrderService {
             email: orderUser.email,
             orderId,
             refundAmount: finalAmount,
-            refundTransactionId:
-              refundTxnId || `REF_${order.id}_${Date.now()}`
+            refundTransactionId: refundTxn
           },
           {
             attempts: 3,
@@ -836,6 +859,24 @@ class OrderService {
           }
         );
       }
+
+      sendMessage(TOPICS.ORDER_CANCELLED, {
+        email: orderUser.email,
+        orderId,
+        refundAmount:
+          finalAmount > 0 &&
+          previousStatus !== "PAYMENT_PENDING"
+            ? finalAmount
+            : null,
+        returnedPoints:
+          order.points_redeemed > 0
+            ? order.points_redeemed
+            : null,
+        reversedPoints:
+          reversedPoints > 0
+            ? reversedPoints
+            : null
+      });
 
       return {
         message:
