@@ -7,8 +7,9 @@ function createBullConnection() {
     password: process.env.REDIS_PASSWORD || undefined,
     tls: process.env.REDIS_TLS === "true" ? {} : undefined,
     maxRetriesPerRequest: null,
-    enableReadyCheck: false,
-    lazyConnect: true
+    retryStrategy(times) {
+      return Math.min(times * 200, 5000);
+    }
   });
 }
 

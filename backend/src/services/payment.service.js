@@ -304,6 +304,7 @@ class PaymentService {
   async handleCheckoutCompleted(
     session
   ) {
+    console.log(`[WEBHOOK] Processing checkout.session.completed for session ${session.id}`);
 
     const payment =
       await paymentRepository.findBySessionId(
@@ -311,6 +312,7 @@ class PaymentService {
       );
 
     if (!payment) {
+      console.log(`[WEBHOOK] Payment not found for session ${session.id} — skipping`);
       return;
     }
 
@@ -318,6 +320,7 @@ class PaymentService {
       payment.status ===
       PAYMENT_STATUS.SUCCESS
     ) {
+      console.log(`[WEBHOOK] Payment ${payment.id} already SUCCESS — skipping`);
       return;
     }
 
@@ -331,9 +334,11 @@ class PaymentService {
       order.status ===
         ORDER_STATUS.PAID
     ) {
+      console.log(`[WEBHOOK] Order ${payment.order_id} already PAID — skipping`);
       return;
     }
 
+    console.log(`[WEBHOOK] Updating payment ${payment.id} to SUCCESS, order ${payment.order_id} to PAID`);
     await paymentRepository.updateStatus(
       payment.id,
       PAYMENT_STATUS.SUCCESS
@@ -345,6 +350,7 @@ class PaymentService {
       null,
       "paid_at"
     );
+    console.log(`[WEBHOOK] DB updated — payment ${payment.id} SUCCESS, order ${payment.order_id} PAID`);
 
     const earnedPoints =
       Math.floor(
@@ -373,7 +379,7 @@ class PaymentService {
       }
     );
 
-    sendMessage(TOPICS.PAYMENT_COMPLETED, {
+    await sendMessage(TOPICS.PAYMENT_COMPLETED, {
       email: payer.email,
       orderId: payment.order_id,
       userId: payment.user_id,
