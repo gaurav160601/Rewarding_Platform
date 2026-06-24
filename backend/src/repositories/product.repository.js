@@ -17,14 +17,11 @@ class ProductRepository {
     }
 
     async getProductById(id) {
-        console.log("Repository getProductById id:", id);
 
         const [rows] = await pool.execute(
             `SELECT * FROM products WHERE id=?`,
             [id]
         );
-
-        console.log("Repository getProductById rows:", rows.length);
 
         return rows[0];
     }

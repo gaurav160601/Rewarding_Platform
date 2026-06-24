@@ -1,4 +1,7 @@
 const jwt = require("jsonwebtoken");
+const logger = require("../utils/logger");
+
+const authLog = logger.child({ module: "auth.middleware" });
 
 const authMiddleware = (
   req,
@@ -35,9 +38,18 @@ const authMiddleware = (
 
     req.user = decoded;
 
+    authLog.info(
+      { event: "JWT_VALIDATED", userId: decoded.id, email: decoded.email },
+      "JWT_VALIDATED"
+    );
+
     next();
 
   } catch (error) {
+
+    if (error.name === "TokenExpiredError") {
+      authLog.warn({ event: "JWT_EXPIRED" }, "JWT_EXPIRED");
+    }
 
     return res.status(401).json({
       success: false,

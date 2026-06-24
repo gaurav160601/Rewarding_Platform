@@ -5,6 +5,10 @@ const validateProduct = require("../validators/product.validator");
 const redisClient =
 require("../config/redis.config");
 
+const logger = require("../utils/logger");
+
+const productLog = logger.child({ module: "product.service" });
+
 class ProductService {
 
   async create(data) {
@@ -25,6 +29,7 @@ class ProductService {
         keys
       );
 
+      productLog.debug({ event: "REDIS_CACHE_DELETE", pattern: "products:*", count: keys.length }, "REDIS_CACHE_DELETE");
     }
 
     return {
@@ -33,8 +38,6 @@ class ProductService {
   }
 
   async getById(id) {
-
-    console.log("Service getById id:", id);
 
     const product =
       await productRepository.getProductById(
@@ -69,18 +72,14 @@ class ProductService {
 
     if (cachedData) {
 
-      console.log(
-        "Redis Cache Hit"
-      );
+      productLog.debug({ event: "REDIS_CACHE_HIT", cacheKey }, "REDIS_CACHE_HIT");
 
       return JSON.parse(
         cachedData
       );
     }
 
-    console.log(
-      "Redis Cache Miss"
-    );
+    productLog.debug({ event: "REDIS_CACHE_MISS", cacheKey }, "REDIS_CACHE_MISS");
 
     const offset =
       (currentPage - 1) * limit;
@@ -96,6 +95,8 @@ class ProductService {
       300,
       JSON.stringify(result)
     );
+
+    productLog.debug({ event: "REDIS_CACHE_SET", cacheKey, ttl: 300 }, "REDIS_CACHE_SET");
 
     return result;
   }
@@ -141,6 +142,7 @@ class ProductService {
       keys
     );
 
+    productLog.debug({ event: "REDIS_CACHE_DELETE", pattern: "products:*", count: keys.length }, "REDIS_CACHE_DELETE");
   }
 
   return {
@@ -174,6 +176,7 @@ async delete(id) {
       keys
     );
 
+    productLog.debug({ event: "REDIS_CACHE_DELETE", pattern: "products:*", count: keys.length }, "REDIS_CACHE_DELETE");
   }
 
   return {

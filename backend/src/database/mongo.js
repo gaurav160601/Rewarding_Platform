@@ -1,4 +1,7 @@
 const mongoose = require("mongoose");
+const logger = require("../utils/logger");
+
+const mongoLog = logger.child({ module: "db.mongo" });
 
 const connectMongo = async () => {
   try {
@@ -10,10 +13,9 @@ const connectMongo = async () => {
       }
     );
 
-    console.log(" MongoDB Connected");
+    mongoLog.info({ event: "MONGODB_CONNECTED" }, "MongoDB Connected");
   } catch (error) {
-    console.error(" MongoDB Connection Failed");
-    console.error(error);
+    mongoLog.error({ event: "MONGODB_CONNECTED", error: error.message }, "MongoDB Connection Failed");
     throw error;
   }
 };

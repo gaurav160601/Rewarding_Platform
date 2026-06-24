@@ -4,6 +4,9 @@ const { startOrderConsumer, stopOrderConsumer } = require("./consumers/order.con
 const { startPaymentConsumer, stopPaymentConsumer } = require("./consumers/payment.consumer");
 const { startNotificationConsumer, stopNotificationConsumer } = require("./consumers/notification.consumer");
 const TOPICS = require("./topics/kafka.topics");
+const logger = require("./utils/logger");
+
+const kafkaLog = logger.child({ module: "kafka.bootstrap" });
 
 function withTimeout(promise, label, ms = 15000) {
   return Promise.race([
@@ -25,28 +28,26 @@ async function ensureTopics(kafka) {
       .map(topic => ({ topic }));
     if (toCreate.length > 0) {
       await admin.createTopics({ topics: toCreate, waitForLeaders: true, timeout: 15000 });
-      console.log(` Kafka topics created: ${toCreate.map(t => t.topic).join(", ")}`);
-    } else {
-      console.log(" Kafka topics already exist");
+      kafkaLog.info({ topics: toCreate.map(t => t.topic).join(", ") }, "Kafka topics created");
     }
   } catch (err) {
-    console.log(` Kafka topics must be created in Aiven console. Topics needed: ${Object.values(TOPICS).join(", ")}`);
+    kafkaLog.warn({ topics: Object.values(TOPICS).join(", ") }, "Kafka topics must be created in Aiven console");
   } finally {
     try { await admin.disconnect(); } catch {}
   }
 }
 
 async function startKafka() {
-  console.log(" Starting Kafka...");
+  kafkaLog.info({ event: "KAFKA_STARTING" }, "Starting Kafka...");
 
   if (!process.env.KAFKA_BROKER) {
-    console.log(" KAFKA_BROKER not set — Kafka disabled");
+    kafkaLog.warn("KAFKA_BROKER not set — Kafka disabled");
     return;
   }
 
   const kafka = createKafkaClient();
   if (!kafka) {
-    console.log(" Kafka client creation failed — Kafka disabled");
+    kafkaLog.warn("Kafka client creation failed — Kafka disabled");
     return;
   }
 
@@ -62,15 +63,15 @@ async function startKafka() {
 
   for (const result of results) {
     if (result.status === "rejected") {
-      console.log(` Kafka consumer start warning: ${result.reason.message}`);
+      kafkaLog.warn({ error: result.reason.message }, "Kafka consumer start warning");
     }
   }
 
-  console.log(" Kafka services started");
+  kafkaLog.info({ event: "KAFKA_CONNECTED" }, "KAFKA_CONNECTED");
 }
 
 async function stopKafka() {
-  console.log(" Stopping Kafka...");
+  kafkaLog.info("Stopping Kafka...");
 
   await Promise.allSettled([
     disconnectProducer(),
@@ -79,7 +80,7 @@ async function stopKafka() {
     stopNotificationConsumer()
   ]);
 
-  console.log(" Kafka services stopped");
+  kafkaLog.info("Kafka services stopped");
 }
 
 module.exports = { startKafka, stopKafka };

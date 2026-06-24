@@ -25,10 +25,6 @@ router.get(
 
 router.get(
   "/:id",
-  (req, res, next) => {
-    console.log("Route getById id:", req.params.id);
-    next();
-  },
   productController.getById
 );
 

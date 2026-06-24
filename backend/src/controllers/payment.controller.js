@@ -104,7 +104,9 @@ class PaymentController {
 
     } catch (error) {
 
-      console.error(error);
+      if (req.log) {
+        req.log.error({ type: "PAYMENT_ERROR", error: error.message, route: "/api/payments/webhook" }, "Webhook error");
+      }
 
       return res.status(400).json({
         message:

@@ -1,10 +1,15 @@
 const { Worker } = require("bullmq");
 const emailService = require("../services/email.service");
 const { createBullConnection } = require("../config/redis.bull.config");
+const logger = require("../utils/logger");
+
+const jobLog = logger.child({ module: "bullmq.email" });
 
 const worker = new Worker(
   "emailQueue",
   async (job) => {
+    const start = Date.now();
+    jobLog.info({ event: "JOB_STARTED", jobId: job.id, queue: "emailQueue", jobName: job.name }, "JOB_STARTED");
     const data = job.data;
     switch (job.name) {
       case "WELCOME":
@@ -32,8 +37,10 @@ const worker = new Worker(
         await emailService.sendRewardEarnedEmail(data);
         break;
       default:
-        console.log(`Unknown email job: ${job.name}`);
+        jobLog.warn({ jobName: job.name }, "Unknown email job");
     }
+    const duration = Date.now() - start;
+    jobLog.info({ event: "JOB_COMPLETED", jobId: job.id, queue: "emailQueue", jobName: job.name, executionTime: duration }, "JOB_COMPLETED");
   },
   {
     connection: createBullConnection(),
@@ -43,11 +50,11 @@ const worker = new Worker(
 );
 
 worker.on("completed", (job) => {
-  console.log(`Email Job ${job.id} (${job.name}) completed`);
+  jobLog.info({ event: "JOB_COMPLETED", jobId: job.id, queue: "emailQueue", jobName: job.name }, "Email Job completed");
 });
 
 worker.on("failed", (job, err) => {
-  console.error(`Email Job ${job.id} (${job.name}) failed`, err);
+  jobLog.error({ event: "JOB_FAILED", jobId: job.id, queue: "emailQueue", jobName: job.name, error: err.message }, "JOB_FAILED");
 });
 
 module.exports = worker;

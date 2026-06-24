@@ -1,5 +1,6 @@
 require("dotenv").config();
 
+const logger = require("./src/utils/logger");
 const app = require("./src/app");
 
 const config =
@@ -23,29 +24,33 @@ const redisClient =
 require("./src/config/redis.config");
 
 const startServer = async () => {
+  logger.info({ step: "APP_STARTING" }, "Application starting");
+
   try {
 
     await connectMySQL();
+    logger.info({ step: "MYSQL_CONNECTED" }, "TiDB connected successfully");
 
     try {
       await connectMongo();
     } catch {
-      console.log(" MongoDB unavailable — reward features disabled");
+      logger.warn({ step: "MONGODB_CONNECTED" }, "MongoDB unavailable — reward features disabled");
     }
 
     await startKafka();
 
     const server = app.listen(config.port, () => {
-      console.log(
+      logger.info(
+        { step: "SERVER_STARTED", port: config.port },
         `Server running on port ${config.port}`
       );
     });
 
     const gracefulShutdown = async (signal) => {
-      console.log(`\n ${signal} received — shutting down gracefully...`);
+      logger.info({ signal }, "Shutdown signal received — shutting down gracefully");
       await stopKafka();
       server.close(() => {
-        console.log(" HTTP server closed");
+        logger.info("HTTP server closed");
         process.exit(0);
       });
     };
@@ -55,12 +60,28 @@ const startServer = async () => {
 
   } catch (error) {
 
-    console.error(
-      " Startup Failed"
+    logger.fatal(
+      { error: error.message, stack: error.stack },
+      "Startup Failed"
     );
 
     process.exit(1);
   }
 };
+
+process.on("unhandledRejection", (reason) => {
+  logger.fatal(
+    { type: "UNHANDLED_REJECTION", error: reason?.message, stack: reason?.stack },
+    "Unhandled Promise Rejection"
+  );
+});
+
+process.on("uncaughtException", (err) => {
+  logger.fatal(
+    { type: "UNCAUGHT_EXCEPTION", error: err.message, stack: err.stack },
+    "Uncaught Exception"
+  );
+  process.exit(1);
+});
 
 startServer();

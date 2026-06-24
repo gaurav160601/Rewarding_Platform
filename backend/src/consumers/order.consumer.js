@@ -1,13 +1,16 @@
 const { createKafkaClient } = require("../config/kafka.config");
 const TOPICS = require("../topics/kafka.topics");
 const { sendMessage } = require("../producers/order.producer");
+const logger = require("../utils/logger");
+
+const consumerLog = logger.child({ module: "kafka.order-consumer" });
 
 let consumer = null;
 
 async function startOrderConsumer() {
   const kafka = createKafkaClient();
   if (!kafka) {
-    console.log(" Kafka not configured — order consumer disabled");
+    consumerLog.warn("Kafka not configured — order consumer disabled");
     return;
   }
 
@@ -24,22 +27,26 @@ async function startOrderConsumer() {
 
   try {
     await consumer.connect();
-    console.log(" Kafka order consumer connected");
+    consumerLog.info({ event: "KAFKA_CONSUMER_CONNECTED" }, "KAFKA_CONSUMER_CONNECTED");
 
     const topics = [TOPICS.ORDER_CREATED, TOPICS.ORDER_CANCELLED, TOPICS.ORDER_SHIPPED, TOPICS.ORDER_DELIVERED];
     for (const topic of topics) {
       try {
         await consumer.subscribe({ topic, fromBeginning: false });
       } catch (subErr) {
-        console.log(` Kafka order consumer: topic "${topic}" not available`);
+        consumerLog.warn({ topic, error: subErr.message }, `Topic "${topic}" not available`);
       }
     }
 
     consumer.run({
       eachMessage: async ({ topic, partition, message }) => {
+        const offset = message.offset;
         try {
           const data = JSON.parse(message.value.toString());
-          console.log(`[ORDER-CONSUMER] Received ${topic}:`, JSON.stringify(data).slice(0, 150));
+          consumerLog.info(
+            { event: "KAFKA_MESSAGE_RECEIVED", topic, partition, offset, eventType: topic },
+            "KAFKA_MESSAGE_RECEIVED"
+          );
 
           if (topic === TOPICS.ORDER_CREATED) {
             await sendMessage(TOPICS.EMAIL_NOTIFICATION, {
@@ -56,15 +63,23 @@ async function startOrderConsumer() {
               refundAmount: data.refundAmount
             });
           }
+
+          consumerLog.info(
+            { event: "KAFKA_MESSAGE_PROCESSED", topic, partition, offset, eventType: topic },
+            "KAFKA_MESSAGE_PROCESSED"
+          );
         } catch (err) {
-          console.error(`[ORDER-CONSUMER] Error processing ${topic}:`, err.message);
+          consumerLog.error(
+            { event: "KAFKA_MESSAGE_FAILED", topic, partition, offset, error: err.message },
+            "KAFKA_MESSAGE_FAILED"
+          );
         }
       }
     });
 
-    console.log(" Kafka order consumer running");
+    consumerLog.info("Kafka order consumer running");
   } catch (err) {
-    console.error(" Kafka order consumer failed:", err.message);
+    consumerLog.error({ error: err.message }, "Kafka order consumer failed");
   }
 }
 
@@ -72,9 +87,9 @@ async function stopOrderConsumer() {
   if (consumer) {
     try {
       await consumer.disconnect();
-      console.log(" Kafka order consumer disconnected");
+      consumerLog.info("Kafka order consumer disconnected");
     } catch (err) {
-      console.error(" Kafka order consumer disconnect error:", err.message);
+      consumerLog.error({ error: err.message }, "Kafka order consumer disconnect error");
     }
   }
 }

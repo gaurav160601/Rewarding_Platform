@@ -2,9 +2,10 @@ const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
 const compression = require("compression");
-const morgan = require("morgan");
 const routes = require("./routes");
-const errorMiddleware =require("./middleware/error.middleware");
+const errorMiddleware = require("./middleware/error.middleware");
+const requestLogger = require("./middlewares/requestLogger");
+const errorLogger = require("./middlewares/errorLogger");
 const app = express();
 
 // Security
@@ -22,6 +23,9 @@ app.use(helmet());
 // Performance
 app.use(compression());
 
+// Request Tracking (generates requestId for every request)
+app.use(requestLogger);
+
 // Stripe Webhook — raw body before any parser
 app.use("/api/payments/webhook", (req, res, next) => {
   express.raw({ type: "application/json" })(req, res, (err) => {
@@ -35,10 +39,12 @@ app.use("/api/payments/webhook", (req, res, next) => {
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Logging
-app.use(morgan("dev"));
-
-
 app.use("/api", routes);
+
+// Error Logging (logs error before sending response)
+app.use(errorLogger);
+
+// Error Response
 app.use(errorMiddleware);
+
 module.exports = app;

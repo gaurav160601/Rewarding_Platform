@@ -1,12 +1,16 @@
 const { createKafkaClient } = require("../config/kafka.config");
+const logger = require("../utils/logger");
+
+const producerLog = logger.child({ module: "kafka.producer" });
 
 let producer = null;
 let connected = false;
 
 async function connectProducer() {
+  producerLog.info({ event: "KAFKA_PRODUCER_CONNECTING" }, "KAFKA_PRODUCER_CONNECTING");
   const kafka = createKafkaClient();
   if (!kafka) {
-    console.log(" Kafka not configured — producer disabled");
+    producerLog.warn("Kafka not configured — producer disabled");
     return;
   }
   producer = kafka.producer({
@@ -20,9 +24,9 @@ async function connectProducer() {
   try {
     await producer.connect();
     connected = true;
-    console.log(" Kafka producer connected");
+    producerLog.info({ event: "KAFKA_PRODUCER_CONNECTED" }, "KAFKA_PRODUCER_CONNECTED");
   } catch (err) {
-    console.error(" Kafka producer connection failed:", err.message);
+    producerLog.error({ event: "KAFKA_PRODUCER_CONNECTED", error: err.message }, "Kafka producer connection failed");
     producer = null;
   }
 }
@@ -32,9 +36,9 @@ async function disconnectProducer() {
     try {
       await producer.disconnect();
       connected = false;
-      console.log(" Kafka producer disconnected");
+      producerLog.info("Kafka producer disconnected");
     } catch (err) {
-      console.error(" Kafka producer disconnect error:", err.message);
+      producerLog.error({ error: err.message }, "Kafka producer disconnect error");
     }
   }
 }
@@ -55,9 +59,15 @@ async function sendMessage(topic, payload) {
         }
       ]
     });
-    console.log(`[KAFKA] Sent to ${topic}:`, JSON.stringify(payload).slice(0, 120));
+    producerLog.info(
+      { event: "KAFKA_MESSAGE_SENT", topic, eventType: topic, data: JSON.stringify(payload).slice(0, 200) },
+      "KAFKA_MESSAGE_SENT"
+    );
   } catch (err) {
-    console.error(`[KAFKA] Failed to send to ${topic}:`, err.message);
+    producerLog.error(
+      { event: "KAFKA_MESSAGE_FAILED", topic, error: err.message },
+      "KAFKA_MESSAGE_FAILED"
+    );
   }
 }
 

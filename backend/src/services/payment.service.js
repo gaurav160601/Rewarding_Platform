@@ -22,6 +22,10 @@ const TOPICS = require("../topics/kafka.topics");
 const userRepository =
 require("../repositories/user.repository");
 
+const logger = require("../utils/logger");
+
+const paymentLog = logger.child({ module: "payment.service" });
+
 const MIN_PAYMENT_AMOUNT = 50;
 
 const PAYMENT_STATUS =
@@ -83,6 +87,8 @@ class PaymentService {
         null,
         "paid_at"
       );
+
+      paymentLog.info({ event: "PAYMENT_SESSION_CREATED", orderId: order.id, userId, amount: 0, method: "points_only" }, "PAYMENT_SESSION_CREATED");
 
       await rewardQueue.add(
         "earnReward",
@@ -165,6 +171,8 @@ class PaymentService {
       paymentId,
       session.id
     );
+
+    paymentLog.info({ event: "PAYMENT_SESSION_CREATED", orderId: order.id, userId, paymentId, amount: paymentAmount, sessionId: session.id }, "PAYMENT_SESSION_CREATED");
 
     return {
       paymentId,
@@ -271,12 +279,20 @@ class PaymentService {
     signature
   ) {
 
-    const event =
-      stripe.webhooks.constructEvent(
-        payload,
-        signature,
-        process.env.STRIPE_WEBHOOK_SECRET
-      );
+    let event;
+    try {
+      event =
+        stripe.webhooks.constructEvent(
+          payload,
+          signature,
+          process.env.STRIPE_WEBHOOK_SECRET
+        );
+    } catch (err) {
+      paymentLog.error({ event: "PAYMENT_WEBHOOK_RECEIVED", error: err.message }, "Stripe webhook signature verification failed");
+      throw err;
+    }
+
+    paymentLog.info({ event: "PAYMENT_WEBHOOK_RECEIVED", type: event.type, id: event.id }, "PAYMENT_WEBHOOK_RECEIVED");
 
     switch (event.type) {
 
@@ -291,9 +307,7 @@ class PaymentService {
 
       default:
 
-        console.log(
-          `Unhandled event: ${event.type}`
-        );
+        paymentLog.info({ type: event.type }, "Unhandled webhook event type");
     }
 
     return {
@@ -304,7 +318,7 @@ class PaymentService {
   async handleCheckoutCompleted(
     session
   ) {
-    console.log(`[WEBHOOK] Processing checkout.session.completed for session ${session.id}`);
+    paymentLog.info({ event: "PAYMENT_WEBHOOK_RECEIVED", sessionId: session.id, type: "checkout.session.completed" }, "Processing checkout.session.completed");
 
     const payment =
       await paymentRepository.findBySessionId(
@@ -312,7 +326,7 @@ class PaymentService {
       );
 
     if (!payment) {
-      console.log(`[WEBHOOK] Payment not found for session ${session.id} — skipping`);
+      paymentLog.warn({ event: "PAYMENT_WEBHOOK_RECEIVED", sessionId: session.id, reason: "payment_not_found" }, "Payment not found — skipping");
       return;
     }
 
@@ -320,7 +334,7 @@ class PaymentService {
       payment.status ===
       PAYMENT_STATUS.SUCCESS
     ) {
-      console.log(`[WEBHOOK] Payment ${payment.id} already SUCCESS — skipping`);
+      paymentLog.info({ event: "PAYMENT_WEBHOOK_RECEIVED", paymentId: payment.id, orderId: payment.order_id, reason: "already_success" }, "Payment already SUCCESS — skipping");
       return;
     }
 
@@ -334,11 +348,11 @@ class PaymentService {
       order.status ===
         ORDER_STATUS.PAID
     ) {
-      console.log(`[WEBHOOK] Order ${payment.order_id} already PAID — skipping`);
+      paymentLog.info({ event: "PAYMENT_WEBHOOK_RECEIVED", paymentId: payment.id, orderId: payment.order_id, reason: "order_already_paid" }, "Order already PAID — skipping");
       return;
     }
 
-    console.log(`[WEBHOOK] Updating payment ${payment.id} to SUCCESS, order ${payment.order_id} to PAID`);
+    paymentLog.info({ event: "PAYMENT_STATUS_UPDATED", paymentId: payment.id, status: PAYMENT_STATUS.SUCCESS }, "PAYMENT_STATUS_UPDATED");
     await paymentRepository.updateStatus(
       payment.id,
       PAYMENT_STATUS.SUCCESS
@@ -350,7 +364,8 @@ class PaymentService {
       null,
       "paid_at"
     );
-    console.log(`[WEBHOOK] DB updated — payment ${payment.id} SUCCESS, order ${payment.order_id} PAID`);
+
+    paymentLog.info({ event: "PAYMENT_SUCCESS", paymentId: payment.id, orderId: payment.order_id, amount: payment.amount }, "PAYMENT_SUCCESS");
 
     const earnedPoints =
       Math.floor(
@@ -411,10 +426,6 @@ class PaymentService {
           delay: 2000
         }
       }
-    );
-
-    console.log(
-      "Reward Job Queued"
     );
   }
 

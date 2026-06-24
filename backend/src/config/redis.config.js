@@ -1,9 +1,9 @@
-console.log("REDIS_HOST =", process.env.REDIS_HOST);
-console.log("REDIS_PORT =", process.env.REDIS_PORT);
-console.log("REDIS_TLS =", process.env.REDIS_TLS);
-
 const Redis =
 require("ioredis");
+
+const logger = require("../utils/logger");
+
+const redisLog = logger.child({ module: "redis" });
 
 const client =
 new Redis({
@@ -33,9 +33,9 @@ new Redis({
 client.on(
   "error",
   (err) => {
-    console.error(
-      "Redis Error:",
-      err
+    redisLog.error(
+      { event: "REDIS_CONNECTION_ERROR", error: err.message },
+      "REDIS_CONNECTION_ERROR"
     );
   }
 );
@@ -43,8 +43,9 @@ client.on(
 client.on(
   "connect",
   () => {
-    console.log(
-      " Redis Connected"
+    redisLog.info(
+      { event: "REDIS_CONNECTED" },
+      "REDIS_CONNECTED"
     );
   }
 );

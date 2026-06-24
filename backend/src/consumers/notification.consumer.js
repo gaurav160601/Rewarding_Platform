@@ -1,12 +1,15 @@
 const { createKafkaClient } = require("../config/kafka.config");
 const TOPICS = require("../topics/kafka.topics");
+const logger = require("../utils/logger");
+
+const consumerLog = logger.child({ module: "kafka.notification-consumer" });
 
 let consumer = null;
 
 async function startNotificationConsumer() {
   const kafka = createKafkaClient();
   if (!kafka) {
-    console.log(" Kafka not configured — notification consumer disabled");
+    consumerLog.warn("Kafka not configured — notification consumer disabled");
     return;
   }
 
@@ -23,38 +26,45 @@ async function startNotificationConsumer() {
 
   try {
     await consumer.connect();
-    console.log(" Kafka notification consumer connected");
+    consumerLog.info({ event: "KAFKA_CONSUMER_CONNECTED" }, "KAFKA_CONSUMER_CONNECTED");
 
     try {
       await consumer.subscribe({ topic: TOPICS.EMAIL_NOTIFICATION, fromBeginning: false });
     } catch (subErr) {
-      console.log(` Kafka notification consumer: topic "${TOPICS.EMAIL_NOTIFICATION}" not available`);
+      consumerLog.warn({ topic: TOPICS.EMAIL_NOTIFICATION, error: subErr.message }, "Topic not available");
     }
 
     consumer.run({
       eachMessage: async ({ topic, partition, message }) => {
+        const offset = message.offset;
         try {
           const data = JSON.parse(message.value.toString());
-          console.log(`[NOTIFICATION-CONSUMER] Email notification received:`, JSON.stringify(data).slice(0, 200));
+          consumerLog.info(
+            { event: "KAFKA_MESSAGE_RECEIVED", topic, partition, offset, eventType: "EMAIL_NOTIFICATION" },
+            "KAFKA_MESSAGE_RECEIVED"
+          );
 
           if (data.type === "ORDER_CREATED") {
-            console.log(`[NOTIFICATION] Simulating order confirmation email for Order #${data.orderId}`);
+            consumerLog.info({ event: "KAFKA_MESSAGE_PROCESSED", topic, notification: "order_confirmation", orderId: data.orderId }, "Email notification processed");
           } else if (data.type === "ORDER_CANCELLED") {
-            console.log(`[NOTIFICATION] Simulating cancellation email for Order #${data.orderId}`);
+            consumerLog.info({ event: "KAFKA_MESSAGE_PROCESSED", topic, notification: "cancellation", orderId: data.orderId }, "Email notification processed");
           } else if (data.type === "PAYMENT_SUCCESS") {
-            console.log(`[NOTIFICATION] Simulating payment success email for Order #${data.orderId}`);
+            consumerLog.info({ event: "KAFKA_MESSAGE_PROCESSED", topic, notification: "payment_success", orderId: data.orderId }, "Email notification processed");
           } else {
-            console.log(`[NOTIFICATION] Simulating notification for type=${data.type}`);
+            consumerLog.info({ event: "KAFKA_MESSAGE_PROCESSED", topic, notification: data.type }, "Email notification processed");
           }
         } catch (err) {
-          console.error(`[NOTIFICATION-CONSUMER] Error:`, err.message);
+          consumerLog.error(
+            { event: "KAFKA_MESSAGE_FAILED", topic, partition, offset, error: err.message },
+            "KAFKA_MESSAGE_FAILED"
+          );
         }
       }
     });
 
-    console.log(" Kafka notification consumer running");
+    consumerLog.info("Kafka notification consumer running");
   } catch (err) {
-    console.error(" Kafka notification consumer failed:", err.message);
+    consumerLog.error({ error: err.message }, "Kafka notification consumer failed");
   }
 }
 
@@ -62,9 +72,9 @@ async function stopNotificationConsumer() {
   if (consumer) {
     try {
       await consumer.disconnect();
-      console.log(" Kafka notification consumer disconnected");
+      consumerLog.info("Kafka notification consumer disconnected");
     } catch (err) {
-      console.error(" Kafka notification consumer disconnect error:", err.message);
+      consumerLog.error({ error: err.message }, "Kafka notification consumer disconnect error");
     }
   }
 }

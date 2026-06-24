@@ -1,13 +1,16 @@
 const { createKafkaClient } = require("../config/kafka.config");
 const TOPICS = require("../topics/kafka.topics");
 const { sendMessage } = require("../producers/order.producer");
+const logger = require("../utils/logger");
+
+const consumerLog = logger.child({ module: "kafka.payment-consumer" });
 
 let consumer = null;
 
 async function startPaymentConsumer() {
   const kafka = createKafkaClient();
   if (!kafka) {
-    console.log(" Kafka not configured — payment consumer disabled");
+    consumerLog.warn("Kafka not configured — payment consumer disabled");
     return;
   }
 
@@ -24,19 +27,23 @@ async function startPaymentConsumer() {
 
   try {
     await consumer.connect();
-    console.log(" Kafka payment consumer connected");
+    consumerLog.info({ event: "KAFKA_CONSUMER_CONNECTED" }, "KAFKA_CONSUMER_CONNECTED");
 
     try {
       await consumer.subscribe({ topic: TOPICS.PAYMENT_COMPLETED, fromBeginning: false });
     } catch (subErr) {
-      console.log(` Kafka payment consumer: topic "${TOPICS.PAYMENT_COMPLETED}" not available`);
+      consumerLog.warn({ topic: TOPICS.PAYMENT_COMPLETED, error: subErr.message }, "Topic not available");
     }
 
     consumer.run({
       eachMessage: async ({ topic, partition, message }) => {
+        const offset = message.offset;
         try {
           const data = JSON.parse(message.value.toString());
-          console.log(`[PAYMENT-CONSUMER] Received ${topic}:`, JSON.stringify(data).slice(0, 150));
+          consumerLog.info(
+            { event: "KAFKA_MESSAGE_RECEIVED", topic, partition, offset, eventType: "PAYMENT_COMPLETED" },
+            "KAFKA_MESSAGE_RECEIVED"
+          );
 
           await sendMessage(TOPICS.EMAIL_NOTIFICATION, {
             type: "PAYMENT_SUCCESS",
@@ -44,15 +51,23 @@ async function startPaymentConsumer() {
             orderId: data.orderId,
             amount: data.amount
           });
+
+          consumerLog.info(
+            { event: "KAFKA_MESSAGE_PROCESSED", topic, partition, offset, eventType: "PAYMENT_COMPLETED" },
+            "KAFKA_MESSAGE_PROCESSED"
+          );
         } catch (err) {
-          console.error(`[PAYMENT-CONSUMER] Error processing ${topic}:`, err.message);
+          consumerLog.error(
+            { event: "KAFKA_MESSAGE_FAILED", topic, partition, offset, error: err.message },
+            "KAFKA_MESSAGE_FAILED"
+          );
         }
       }
     });
 
-    console.log(" Kafka payment consumer running");
+    consumerLog.info("Kafka payment consumer running");
   } catch (err) {
-    console.error(" Kafka payment consumer failed:", err.message);
+    consumerLog.error({ error: err.message }, "Kafka payment consumer failed");
   }
 }
 
@@ -60,9 +75,9 @@ async function stopPaymentConsumer() {
   if (consumer) {
     try {
       await consumer.disconnect();
-      console.log(" Kafka payment consumer disconnected");
+      consumerLog.info("Kafka payment consumer disconnected");
     } catch (err) {
-      console.error(" Kafka payment consumer disconnect error:", err.message);
+      consumerLog.error({ error: err.message }, "Kafka payment consumer disconnect error");
     }
   }
 }

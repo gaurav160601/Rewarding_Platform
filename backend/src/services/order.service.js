@@ -41,14 +41,19 @@ const {
   ADMIN
 } = require("../constants/roles");
 
+const logger = require("../utils/logger");
+
+const orderLog = logger.child({ module: "order.service" });
+
 async function clearProductCache() {
   try {
     const keys = await redisClient.keys("products:*");
     if (keys.length > 0) {
       await redisClient.del(keys);
     }
+    orderLog.debug({ event: "REDIS_CACHE_DELETE", pattern: "products:*", count: keys.length }, "REDIS_CACHE_DELETE");
   } catch (err) {
-    console.error("Cache clear error:", err.message);
+    orderLog.error({ event: "REDIS_CACHE_DELETE", error: err.message }, "Cache clear error");
   }
 }
 
@@ -58,6 +63,8 @@ class OrderService {
     userId,
     redeemPoints = 0
   ) {
+
+    orderLog.info({ event: "ORDER_CHECKOUT_STARTED", userId }, "ORDER_CHECKOUT_STARTED");
 
     const existingOrders =
       await orderRepository.getOrdersByUserId(
@@ -77,6 +84,7 @@ class OrderService {
       );
 
     if (activeOrder) {
+      orderLog.info({ event: "ORDER_CHECKOUT_STARTED", userId, existingOrderId: activeOrder.id, reason: "existing_pending" }, "Existing pending order found");
       return {
         orderId:
           activeOrder.id,
@@ -204,6 +212,8 @@ class OrderService {
         }
       }
 
+      orderLog.info({ event: "ORDER_VALIDATION_SUCCESS", userId, cartItems: cartItems.length, totalAmount, redeemPoints }, "ORDER_VALIDATION_SUCCESS");
+
       const paymentExpiresAt =
         new Date(
           Date.now() +
@@ -219,6 +229,8 @@ class OrderService {
           discountAmount,
           paymentExpiresAt
         );
+
+      orderLog.info({ event: "ORDER_CREATED", orderId, userId, totalAmount, discountAmount, finalAmount }, "ORDER_CREATED");
 
       if (redeemPoints > 0) {
 
@@ -402,6 +414,8 @@ class OrderService {
         ORDER_STATUS.PAYMENT_EXPIRED;
 
       await clearProductCache();
+
+      orderLog.info({ event: "ORDER_STATUS_UPDATED", orderId: order.id, status: ORDER_STATUS.PAYMENT_EXPIRED, reason: "payment_expired" }, "ORDER_STATUS_UPDATED");
     }
 
     return order;
@@ -510,6 +524,8 @@ class OrderService {
       "processed_at"
     );
 
+    orderLog.info({ event: "ORDER_STATUS_UPDATED", orderId, status: ORDER_STATUS.PROCESSING }, "ORDER_STATUS_UPDATED");
+
     return orderRepository.getOrderById(
       orderId
     );
@@ -546,6 +562,8 @@ class OrderService {
       null,
       "shipped_at"
     );
+
+    orderLog.info({ event: "ORDER_STATUS_UPDATED", orderId, status: ORDER_STATUS.SHIPPED }, "ORDER_STATUS_UPDATED");
 
     const user =
       await userRepository.findById(
@@ -608,6 +626,8 @@ class OrderService {
       null,
       "delivered_at"
     );
+
+    orderLog.info({ event: "ORDER_STATUS_UPDATED", orderId, status: ORDER_STATUS.DELIVERED }, "ORDER_STATUS_UPDATED");
 
     const user =
       await userRepository.findById(
@@ -675,6 +695,8 @@ class OrderService {
         );
       }
 
+      orderLog.info({ event: "ORDER_CANCELLED", orderId, userId: user.id, status: order.status, requestedBy: user.id }, "Cancel attempt");
+
       const cancelable = [
         ORDER_STATUS.PAYMENT_PENDING,
         ORDER_STATUS.PAID,
@@ -682,6 +704,7 @@ class OrderService {
       ];
 
       if (!cancelable.includes(order.status)) {
+        orderLog.warn({ event: "ORDER_CANCELLED", orderId, status: order.status, reason: "not_cancelable" }, "Order can no longer be cancelled");
         throw new Error(
           "Order can no longer be cancelled."
         );
@@ -715,6 +738,8 @@ class OrderService {
       await connection.commit();
 
       await clearProductCache();
+
+      orderLog.info({ event: "ORDER_STATUS_UPDATED", orderId, status: ORDER_STATUS.CANCELLED }, "ORDER_STATUS_UPDATED");
 
       const finalAmount =
         Number(order.total_amount) -

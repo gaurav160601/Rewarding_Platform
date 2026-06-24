@@ -68,8 +68,6 @@ class ProductController {
 
     try {
 
-      console.log("Controller getById id:", req.params.id);
-
       const product =
         await productService.getById(
           req.params.id

@@ -4,6 +4,10 @@ require("../repositories/reward.repository");
 const RewardTransaction =
 require("../models/rewardTransaction.model");
 
+const logger = require("../utils/logger");
+
+const rewardLog = logger.child({ module: "reward.service" });
+
 class RewardService {
 
   calculatePoints(
@@ -37,6 +41,7 @@ class RewardService {
       });
 
     if (existing) {
+      rewardLog.info({ userId, orderId, points, reason: "already_earned" }, "Points already earned for order");
       return existing;
     }
 
@@ -53,6 +58,8 @@ class RewardService {
       description:
         `Earned ${points} points from Order #${orderId}`
     });
+
+    rewardLog.info({ event: "ORDER_COMPLETED", userId, orderId, pointsEarned: points }, "ORDER_COMPLETED");
 
     return {
       points
@@ -100,6 +107,8 @@ class RewardService {
         .getUserRewardBalance(
           userId
         );
+
+    rewardLog.info({ userId, pointsRedeemed: points, remainingBalance: updated.reward_points }, "Points redeemed standalone");
 
     return updated;
   }
